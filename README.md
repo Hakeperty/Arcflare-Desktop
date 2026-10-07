@@ -15,6 +15,7 @@ the `arcflare` command never disagree, and they share one settings file
 | | |
 | --- | --- |
 | **Chat** | Conversations kept locally. Streaming replies, collapsible reasoning, stop, retry, per-chat system prompt, tok/s. Pick a model and it loads at the largest context that fits. |
+| **Phone** | Press **phone** in the title bar and scan the QR code: your phone gets a chat with the model on this computer, from any network. It's the same relay and key as `/rc` in the CLI. The app only makes outbound HTTPS requests, so nothing listens on a port. The conversation shows in Chat as **phone**, and you can type into it from either side. |
 | **Studio · Image** | stable-diffusion.cpp on this machine (SD 1.5, SDXL, FLUX checkpoints), or your own ComfyUI workflow when ComfyUI is running. One click sends an image to 3D. |
 | **Studio · 3D** | Hunyuan3D and TripoSR, from an image or a description. Then **point and ask**: paint a soft selection on the model, type "make this bigger", "smooth it", "paint it red" or "pull it up a bit", and it changes just that part. Undo/redo, export `.glb`. |
 | **Studio · Speech** | Qwen3-TTS, Kokoro, Chatterbox, VoxCPM2, OuteTTS. Preset voices, tone, voice cloning. |

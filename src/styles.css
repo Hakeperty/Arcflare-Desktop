@@ -194,3 +194,13 @@ textarea, input, .selectable { user-select: text; }
 .md-pre { border: 1px solid var(--border); background: var(--bg); margin: 0 0 12px; }
 .md-pre-h { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 2px 10px; border-bottom: 1px solid var(--border); font: 11px var(--mono); color: var(--muted-2); text-transform: uppercase; letter-spacing: .1em; }
 .md-pre pre { margin: 0; padding: 10px 12px; overflow-x: auto; font: 12.5px/1.55 var(--mono); color: var(--fg); }
+
+/* ---- phone (remote control) panel ---- */
+.modal-back { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55); display: grid; place-items: center; -webkit-app-region: no-drag; }
+.modal { width: min(640px, calc(100vw - 40px)); max-height: calc(100vh - 60px); overflow-y: auto; border: 1px solid var(--border-strong, var(--border)); background: var(--surface); box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+.modal-h { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
+.modal-b { padding: 16px; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
+.qr { width: 220px; height: 220px; background: #fff; padding: 0; image-rendering: pixelated; display: block; }
+.qr.dim { opacity: .25; filter: blur(2px); }
+.linkbox { font: 11.5px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--border); padding: 8px 10px; word-break: break-all; user-select: text; }
+.from-phone { font: 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }

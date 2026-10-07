@@ -12,6 +12,7 @@ const { pathToFileURL } = require("url");
 
 const eng = require("./engine");
 const image = require("./image");
+const remote = require("./remote")(eng);
 const serve = require("arcflare/lib/serve");
 
 const DEV_URL = process.env.ARCFLARE_DEV_URL;
@@ -92,7 +93,7 @@ function send(channel, payload) {
 }
 
 // Engine events → renderer.
-for (const ev of ["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update"]) {
+for (const ev of ["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update", "rc:status", "rc:turn"]) {
   eng.bus.on(ev, (p) => {
     if (ev === "job:update" && p.state === "done" && p.result && p.result.file) grant(p.result.file);
     send(ev, p);
@@ -140,6 +141,13 @@ handle("models:unload", () => eng.unloadModel());
 
 handle("chat:send", (requestId, payload) => eng.chat(requestId, payload));
 handle("chat:stop", (requestId) => eng.stopChat(requestId));
+
+// Control from your phone (see remote.js).
+handle("rc:start", () => remote.start());
+handle("rc:stop", () => remote.stop());
+handle("rc:status", () => remote.status());
+handle("rc:say", (text) => remote.say(text));
+handle("rc:clear", () => remote.clear());
 handle("edit:plan", (req) => eng.planEdit(req));
 
 handle("gen:status", () => eng.genStatus());
@@ -234,6 +242,7 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  remote.shutdown();
   // llama-server is started detached so the CLI can share it; the app stops it
   // on quit unless the person chose to keep it (Settings).
   eng.shutdown({ stopServer: serve.loadConfig().stopServerOnQuit !== false });

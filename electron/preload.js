@@ -7,6 +7,7 @@ const CHANNELS = new Set([
   "sys:info", "settings:get", "settings:set",
   "models:list", "models:load", "models:unload",
   "chat:send", "chat:stop", "edit:plan",
+  "rc:start", "rc:stop", "rc:status", "rc:say", "rc:clear",
   "gen:status", "gen:setup", "gen:3d", "gen:tts",
   "image:models", "image:generate", "comfy:status",
   "jobs:list", "jobs:cancel",
@@ -15,7 +16,7 @@ const CHANNELS = new Set([
   "files:pick", "files:saveAs", "files:writeBytes", "files:reveal", "files:openStudio", "files:list",
   "open:external",
 ]);
-const EVENTS = new Set(["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update"]);
+const EVENTS = new Set(["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update", "rc:status", "rc:turn"]);
 
 contextBridge.exposeInMainWorld("arc", {
   platform: process.platform,

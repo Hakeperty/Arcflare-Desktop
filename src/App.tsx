@@ -8,6 +8,7 @@ import { Models } from "./views/Models";
 import { Harnesses } from "./views/Harnesses";
 import { Settings } from "./views/Settings";
 import { Jobs } from "./views/Jobs";
+import { PhoneButton, PhonePanel, useRemote } from "./ui/Phone";
 
 export type View = "home" | "chat" | "studio" | "models" | "harnesses" | "jobs" | "settings";
 
@@ -27,6 +28,9 @@ export function App() {
   const [loaded, setLoaded] = useState<LoadedModel | null>(null);
   const [progress, setProgress] = useState<ModelProgress | null>(null);
   const jobs = useJobs();
+  const remote = useRemote();
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [phoneChat, setPhoneChat] = useState(0); // bump to show the Phone conversation
   const running = jobs.filter((j) => j.state === "running");
 
   // System info now and every 15 s: free VRAM moves as models load and unload.
@@ -67,6 +71,7 @@ export function App() {
         <span className="brand">arc<b>flare</b></span>
         <span>{"//"} {view}</span>
         <span className="grow" />
+        <PhoneButton status={remote} onClick={() => setPhoneOpen(true)} />
         {loaded ? (
           <span className="row nodrag" style={{ gap: 6 }} title={`${loaded.id} · ${loaded.ctx} ctx`}>
             <span className="led on" /> {loaded.name}
@@ -99,7 +104,7 @@ export function App() {
 
         <main className="main">
           {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} />}
-          {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} />}
+          {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />}
           {view === "studio" && <Studio loaded={loaded} />}
           {view === "models" && <Models loaded={loaded} progress={progress} go={setView} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}
@@ -107,6 +112,11 @@ export function App() {
           {view === "settings" && <Settings info={info} />}
         </main>
       </div>
+
+      {phoneOpen && (
+        <PhonePanel status={remote} onClose={() => setPhoneOpen(false)}
+          onOpenChat={() => { setView("chat"); setPhoneChat((n) => n + 1); }} />
+      )}
 
       <footer className="statusbar">
         <span className="row" style={{ gap: 6 }}>
@@ -116,6 +126,7 @@ export function App() {
         {loaded && <span>ctx {Math.round(loaded.ctx / 1024)}K</span>}
         {progress && loadingNow && <span style={{ color: "var(--accent)" }}>{progressText(progress)}</span>}
         <span className="sp" />
+        {remote?.on && <span style={{ color: "var(--accent-2)" }}>phone {remote.connected ? "connected" : "connecting"}{remote.clients ? ` · ${remote.clients} watching` : ""}</span>}
         {running.length > 0 && <span style={{ color: "var(--accent)" }}>{running.length} job{running.length > 1 ? "s" : ""} running · {running[0].title} · {running[0].stage}</span>}
         <span>{info?.platform ?? ""}</span>
       </footer>

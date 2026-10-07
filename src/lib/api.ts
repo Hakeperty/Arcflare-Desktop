@@ -180,3 +180,23 @@ export function fileUrl(p: string, bust?: number): string {
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
+
+// ------------------------------------------------------------ phone (rc) ----
+
+export type RcTurn = { role: "user" | "assistant"; content: string; from?: "phone" | "desktop" };
+export type RcStatus = {
+  on: boolean; connected: boolean; clients: number; relay: string; link: string; keyHint: string;
+  qrSvg: string; note: string; busy: boolean; history: RcTurn[];
+};
+export type RcTurnEvent =
+  | { phase: "start"; requestId: string; text: string; from: "phone" | "desktop" }
+  | { phase: "done"; requestId: string; text: string; tokPerSec: number | null }
+  | { phase: "error"; requestId: string; error: string };
+
+export const rc = {
+  start: () => call<RcStatus>("rc:start"),
+  stop: () => call<RcStatus>("rc:stop"),
+  status: () => call<RcStatus>("rc:status"),
+  say: (text: string) => call<boolean>("rc:say", text),
+  clear: () => call<boolean>("rc:clear"),
+};

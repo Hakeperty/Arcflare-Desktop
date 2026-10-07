@@ -2,7 +2,7 @@
 // storage; the model, the prompt and the replies never leave the machine.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, on, uid, type ChatMessage, type LoadedModel, type LocalModel, type ModelProgress } from "../lib/api";
+import { api, on, rc, uid, type ChatMessage, type LoadedModel, type LocalModel, type ModelProgress, type RcStatus, type RcTurnEvent } from "../lib/api";
 import { Markdown } from "../ui/md";
 import { Progress, fmtCtx } from "../ui/kit";
 import { progressText, type View } from "../App";
@@ -21,7 +21,12 @@ function saveConvos(c: Convo[]) {
 }
 const newConvo = (): Convo => ({ id: uid(), title: "New chat", system: DEFAULT_SYSTEM, turns: [], created: Date.now() });
 
-export function Chat({ loaded, progress, go }: { loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void }) {
+export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
+  loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void;
+  remote: RcStatus | null; phoneChat: number; openPhone: () => void;
+}) {
+  const [phoneMode, setPhoneMode] = useState(phoneChat > 0);
+  useEffect(() => { if (phoneChat > 0) setPhoneMode(true); }, [phoneChat]);
   const [convos, setConvos] = useState<Convo[]>(() => { const c = loadConvos(); return c.length ? c : [newConvo()]; });
   const [activeId, setActiveId] = useState(() => convos[0].id);
   const [input, setInput] = useState("");
@@ -110,14 +115,19 @@ export function Chat({ loaded, progress, go }: { loaded: LoadedModel | null; pro
       {/* conversations */}
       <aside style={{ width: 230, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{ padding: 10 }}>
-          <button className="btn" style={{ width: "100%" }} onClick={() => { const c = newConvo(); setConvos((cs) => [c, ...cs]); setActiveId(c.id); }}>
+          <button className="btn" style={{ width: "100%" }} onClick={() => { const c = newConvo(); setConvos((cs) => [c, ...cs]); setActiveId(c.id); setPhoneMode(false); }}>
             + new chat
           </button>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
+          <div className={`nav${phoneMode ? " on" : ""}`} style={{ fontSize: 12 }} onClick={() => setPhoneMode(true)} title="The conversation your phone sees">
+            <span className={`led ${remote?.on ? (remote.connected ? "on" : "busy") : "off"}`} />
+            <span className="grow truncate">phone</span>
+            {remote?.on && remote.clients > 0 && <span className="dim">{remote.clients}</span>}
+          </div>
           {convos.map((c) => (
-            <div key={c.id} className={`nav${c.id === convo.id ? " on" : ""}`} style={{ fontFamily: "var(--sans)", fontSize: 13 }}
-              onClick={() => setActiveId(c.id)}>
+            <div key={c.id} className={`nav${!phoneMode && c.id === convo.id ? " on" : ""}`} style={{ fontFamily: "var(--sans)", fontSize: 13 }}
+              onClick={() => { setActiveId(c.id); setPhoneMode(false); }}>
               <span className="grow truncate">{c.title}</span>
               <button className="btn ghost sm" title="Delete" onClick={(e) => {
                 e.stopPropagation();
@@ -128,8 +138,10 @@ export function Chat({ loaded, progress, go }: { loaded: LoadedModel | null; pro
         </div>
       </aside>
 
+      {phoneMode && <PhoneConversation remote={remote} loaded={loaded} openPhone={openPhone} />}
+
       {/* conversation */}
-      <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <section style={{ flex: 1, minWidth: 0, display: phoneMode ? "none" : "flex", flexDirection: "column" }}>
         <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", gap: 8 }}>
           <select className="select" style={{ maxWidth: 360 }} value={pick} onChange={(e) => setPick(e.target.value)} disabled={!!loadingNow}>
             {models.length === 0 && <option value="">no models found</option>}
@@ -212,5 +224,85 @@ function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
       {t.error && <div className="err">{t.error}</div>}
       {t.tokPerSec != null && <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>{t.tokPerSec} tok/s</div>}
     </div>
+  );
+}
+
+/**
+ * The phone's conversation. It lives in the main process (so the phone works
+ * with this screen closed); this shows it, streams replies, and lets you type
+ * into it from here too.
+ */
+function PhoneConversation({ remote, loaded, openPhone }: { remote: RcStatus | null; loaded: LoadedModel | null; openPhone: () => void }) {
+  const [input, setInput] = useState("");
+  const [live, setLive] = useState<{ requestId: string; reasoning: string; content: string } | null>(null);
+  const [err, setErr] = useState("");
+  const scroller = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const offTurn = on("rc:turn", (t: RcTurnEvent) => {
+      if (t.phase === "start") setLive({ requestId: t.requestId, reasoning: "", content: "" });
+      else setLive((l) => (l && l.requestId === t.requestId ? null : l));
+      if (t.phase === "error" && t.error !== "stopped") setErr(t.error);
+    });
+    const offDelta = on("chat:delta", (d: { requestId: string; kind: string; text: string }) => {
+      setLive((l) => (!l || l.requestId !== d.requestId ? l
+        : d.kind === "reasoning" ? { ...l, reasoning: l.reasoning + d.text } : { ...l, content: l.content + d.text }));
+    });
+    return () => { offTurn(); offDelta(); };
+  }, []);
+
+  const history = remote?.history ?? [];
+  // While a reply streams, the history already holds its question; the reply
+  // itself is the live one below.
+  const turns: Turn[] = history.map((h, i) => ({ id: String(i), role: h.role, content: h.content, from: h.from } as Turn & { from?: string }));
+  useEffect(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; }, [history.length, live?.content]);
+
+  async function send() {
+    const t = input.trim();
+    if (!t) return;
+    setErr("");
+    try { await rc.say(t); setInput(""); } catch (e) { setErr((e as Error).message); }
+  }
+
+  return (
+    <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", gap: 8 }}>
+        <span className="mono" style={{ fontSize: 12 }}>
+          <span className={`led ${remote?.on ? (remote.connected ? "on" : "busy") : "off"}`} />{" "}
+          {remote?.on ? (remote.connected ? `phone link on · ${remote.clients} watching` : "connecting…") : "phone link off"}
+        </span>
+        <span className="dim mono" style={{ fontSize: 11 }}>{loaded ? `answers with ${loaded.name}` : "load a model to answer"}</span>
+        <span className="grow" />
+        <button className="btn sm" onClick={() => rc.clear().catch((e) => setErr((e as Error).message))} disabled={!history.length || !!live}>clear</button>
+        <button className={`btn sm${remote?.on ? " on" : " primary"}`} onClick={openPhone}>{remote?.on ? "qr code" : "connect a phone"}</button>
+      </div>
+      <div ref={scroller} className="selectable" style={{ flex: 1, overflowY: "auto", padding: "18px 0" }}>
+        <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 24px" }} className="col">
+          {turns.length === 0 && !live && (
+            <div className="empty" style={{ marginTop: 40 }}>
+              {remote?.on ? <>Waiting for your phone. Messages typed there show up here, and the model answers on this computer.</>
+                : <>Press <b>connect a phone</b> and scan the code. Your phone gets a chat with the model on this computer, from anywhere.</>}
+            </div>
+          )}
+          {turns.map((t) => (
+            <div key={t.id} className="col" style={{ gap: 0, alignItems: t.role === "user" ? "flex-end" : "stretch" }}>
+              {t.role === "user" && (t as Turn & { from?: string }).from === "phone" && <div className="from-phone">from phone</div>}
+              <TurnView t={t} streaming={false} />
+            </div>
+          ))}
+          {live && <TurnView t={{ id: "live", role: "assistant", content: live.content, reasoning: live.reasoning || undefined }} streaming />}
+          {err && <div className="err">{err}</div>}
+        </div>
+      </div>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
+        <div style={{ maxWidth: 820, margin: "0 auto" }} className="row">
+          <textarea className="textarea grow" rows={2} value={input}
+            placeholder="Type here too — the phone sees it. Enter to send"
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+          <button className="btn primary" onClick={send} disabled={!input.trim()}>send</button>
+        </div>
+      </div>
+    </section>
   );
 }
