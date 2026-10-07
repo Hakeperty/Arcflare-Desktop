@@ -58,7 +58,13 @@
     },
     "mac": {
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.png"
@@ -69,15 +75,28 @@
         "deb"
       ],
       "category": "Development",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "maintainer": "ArcFlare <noreply@arcflare.net>"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "ArcFlare-Setup-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "ArcFlare-mac-${arch}.${ext}"
+    },
+    "appImage": {
+      "artifactName": "ArcFlare-linux-${arch}.${ext}"
+    },
+    "deb": {
+      "artifactName": "ArcFlare-linux-${arch}.${ext}"
     }
   },
   "allowScripts": {
     "electron@33.4.11": true,
     "esbuild@0.25.12": true
-  }
+  },
+  "homepage": "https://arcflare.net/desktop",
+  "repository": "github:Hakeperty/Arcflare-Desktop"
 }

@@ -1,0 +1,98 @@
+# Builds the installers on each OS and attaches them to a GitHub release.
+# Push a tag like v0.1.0 (or run it by hand) and the release appears with:
+#   ArcFlare-Setup-x64.exe · ArcFlare-mac-arm64.dmg · ArcFlare-mac-x64.dmg
+#   ArcFlare-linux-x86_64.AppImage · ArcFlare-linux-amd64.deb
+# Names carry no version, so /releases/latest/download/<name> is a stable link
+# the website can point at.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      # The app depends on the engine as file:../ArcFlare-Code, so check both
+      # out side by side, exactly like a local setup.
+      - uses: actions/checkout@v4
+        with:
+          path: ArcFlare-Desktop
+      - uses: actions/checkout@v4
+        with:
+          repository: Hakeperty/ArcFlare-Code
+          path: ArcFlare-Code
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        working-directory: ArcFlare-Desktop
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: ArcFlare-Desktop
+        run: npm run typecheck
+
+      - name: Build installers
+        working-directory: ArcFlare-Desktop
+        env:
+          # Unsigned for now: no certificates in CI.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx vite build && npx electron-builder ${{ matrix.target }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: |
+            ArcFlare-Desktop/release/*.exe
+            ArcFlare-Desktop/release/*.dmg
+            ArcFlare-Desktop/release/*.AppImage
+            ArcFlare-Desktop/release/*.deb
+            ArcFlare-Desktop/release/*.blockmap
+            ArcFlare-Desktop/release/latest*.yml
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
+          body: |
+            Download the file for your system:
+
+            | System | File |
+            |---|---|
+            | Windows 10/11 | `ArcFlare-Setup-x64.exe` |
+            | macOS, Apple silicon | `ArcFlare-mac-arm64.dmg` |
+            | macOS, Intel | `ArcFlare-mac-x64.dmg` |
+            | Linux (any) | `ArcFlare-linux-x86_64.AppImage` |
+            | Debian / Ubuntu | `ArcFlare-linux-amd64.deb` |
+
+            The builds are not code-signed yet. On Windows, choose **More info → Run anyway** in SmartScreen.
+            On macOS, right-click the app and choose **Open** the first time.
