@@ -13,6 +13,11 @@ const { pathToFileURL } = require("url");
 const eng = require("./engine");
 const image = require("./image");
 const remote = require("./remote")(eng);
+const updater = require("./updater")({
+  send: (ch, p) => send(ch, p),
+  // On unless switched off in Settings; stored in the shared config.json.
+  enabled: () => serve.loadConfig().desktopUpdates !== false,
+});
 const serve = require("arcflare/lib/serve");
 
 const DEV_URL = process.env.ARCFLARE_DEV_URL;
@@ -125,10 +130,11 @@ handle("settings:get", () => {
     comfyUrl: c.comfyUrl || "http://127.0.0.1:8188",
     genPython: c.genPython || "",
     stopServerOnQuit: c.stopServerOnQuit !== false,
+    desktopUpdates: c.desktopUpdates !== false,
   };
 });
 handle("settings:set", (patch) => {
-  const allowedKeys = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython", "stopServerOnQuit"];
+  const allowedKeys = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython", "stopServerOnQuit", "desktopUpdates"];
   const c = serve.loadConfig();
   for (const k of Object.keys(patch || {})) if (allowedKeys.includes(k)) c[k] = patch[k];
   serve.saveConfig(c);
@@ -141,6 +147,11 @@ handle("models:unload", () => eng.unloadModel());
 
 handle("chat:send", (requestId, payload) => eng.chat(requestId, payload));
 handle("chat:stop", (requestId) => eng.stopChat(requestId));
+
+// Updates (see updater.js).
+handle("update:status", () => updater.status());
+handle("update:check", () => updater.check());
+handle("update:install", () => updater.install());
 
 // Control from your phone (see remote.js).
 handle("rc:start", () => remote.start());
@@ -238,10 +249,12 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(p).toString());
   });
   createWindow();
+  updater.start();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
 app.on("window-all-closed", () => {
+  updater.stop();
   remote.shutdown();
   // llama-server is started detached so the CLI can share it; the app stops it
   // on quit unless the person chose to keep it (Settings).

@@ -117,6 +117,7 @@ export type HubModel = {
 export type Settings = {
   llamaServer: string; memoryProfile: string; studioVram: "auto" | "keep";
   sdcpp: string; imageModelsDir: string; comfyUrl: string; genPython: string; stopServerOnQuit: boolean;
+  desktopUpdates: boolean;
 };
 
 export type Harness = { id: string; label: string; installed: boolean; builtin: boolean; bin: string | null };
@@ -199,4 +200,27 @@ export const rc = {
   status: () => call<RcStatus>("rc:status"),
   say: (text: string) => call<boolean>("rc:say", text),
   clear: () => call<boolean>("rc:clear"),
+};
+
+// --------------------------------------------------------------- updates ----
+
+export type UpdateStatus = {
+  state: "idle" | "checking" | "available" | "downloading" | "ready" | "error" | "unsupported";
+  /** The new version, when there is one. */
+  version: string | null;
+  percent: number | null;
+  notes: string | null;
+  /** Release page, for builds that can't install in place (macOS, .deb). */
+  url: string | null;
+  error: string | null;
+  lastChecked: number | null;
+  current: string;
+  /** install: replaces itself · link: points at the release page · none: development build */
+  mode: "install" | "link" | "none";
+};
+
+export const updates = {
+  status: () => call<UpdateStatus>("update:status"),
+  check: () => call<UpdateStatus>("update:check"),
+  install: () => call<boolean>("update:install"),
 };

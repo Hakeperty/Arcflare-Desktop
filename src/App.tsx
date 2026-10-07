@@ -9,6 +9,7 @@ import { Harnesses } from "./views/Harnesses";
 import { Settings } from "./views/Settings";
 import { Jobs } from "./views/Jobs";
 import { PhoneButton, PhonePanel, useRemote } from "./ui/Phone";
+import { UpdatePill, useUpdates } from "./ui/Update";
 
 export type View = "home" | "chat" | "studio" | "models" | "harnesses" | "jobs" | "settings";
 
@@ -29,6 +30,7 @@ export function App() {
   const [progress, setProgress] = useState<ModelProgress | null>(null);
   const jobs = useJobs();
   const remote = useRemote();
+  const update = useUpdates();
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneChat, setPhoneChat] = useState(0); // bump to show the Phone conversation
   const running = jobs.filter((j) => j.state === "running");
@@ -71,6 +73,7 @@ export function App() {
         <span className="brand">arc<b>flare</b></span>
         <span>{"//"} {view}</span>
         <span className="grow" />
+        <UpdatePill status={update} />
         <PhoneButton status={remote} onClick={() => setPhoneOpen(true)} />
         {loaded ? (
           <span className="row nodrag" style={{ gap: 6 }} title={`${loaded.id} · ${loaded.ctx} ctx`}>
@@ -109,7 +112,7 @@ export function App() {
           {view === "models" && <Models loaded={loaded} progress={progress} go={setView} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}
           {view === "jobs" && <Jobs jobs={jobs} />}
-          {view === "settings" && <Settings info={info} />}
+          {view === "settings" && <Settings info={info} update={update} />}
         </main>
       </div>
 

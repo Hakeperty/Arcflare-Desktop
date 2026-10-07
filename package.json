@@ -1,7 +1,7 @@
 {
   "name": "arcflare-desktop",
   "productName": "ArcFlare",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "ArcFlare desktop: chat, studio (image, 3D, speech, flows) and harnesses for local models, without the command line. Built on the ArcFlare engine (github.com/Hakeperty/ArcFlare-Code).",
   "private": true,
   "main": "electron/main.js",
@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "arcflare": "file:../ArcFlare-Code"
+    "arcflare": "file:../ArcFlare-Code",
+    "electron-updater": "^6.8.9"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
@@ -91,7 +92,14 @@
     },
     "deb": {
       "artifactName": "ArcFlare-linux-${arch}.${ext}"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Hakeperty",
+        "repo": "Arcflare-Desktop"
+      }
+    ]
   },
   "allowScripts": {
     "electron@33.4.11": true,

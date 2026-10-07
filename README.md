@@ -78,6 +78,24 @@ npm run dist:linux   # AppImage and .deb
 The engine is unpacked from the app archive, because Python workers can't read
 files inside it.
 
+Releases are built by `.github/workflows/release.yml`: push a `v*` tag and it
+builds on Windows, macOS and Linux and attaches the installers, `latest*.yml`
+and blockmaps to a GitHub release.
+
+## Updates
+
+The app checks the GitHub releases 10 seconds after it starts and every 6 hours
+(electron-updater, `electron/updater.js`). On Windows and the Linux AppImage it
+downloads the new version in the background, then shows **ready · restart** in
+the title bar. It installs when you click that, or the next time you quit,
+never in the middle of a session. The macOS builds aren't signed, so
+Squirrel.Mac can't replace them, and `.deb` installs belong to apt. There the
+title bar says **update available** and opens the release page instead.
+
+Settings → updates has **check now**, the current version, and a switch to turn
+checking off (`desktopUpdates` in `~/.arcflare/config.json`). Development runs
+(`npm run dev`) never check.
+
 ## Licence
 
 MIT

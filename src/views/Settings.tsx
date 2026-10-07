@@ -2,13 +2,15 @@
 // CLI reads, so the app and `arcflare` agree on everything.
 
 import { useEffect, useState } from "react";
-import { api, type Settings as S, type SystemInfo } from "../lib/api";
+import { api, updates, type Settings as S, type SystemInfo, type UpdateStatus } from "../lib/api";
+import { updateText } from "../ui/Update";
 import { Field, Label, Panel } from "../ui/kit";
 
-export function Settings({ info }: { info: SystemInfo | null }) {
+export function Settings({ info, update }: { info: SystemInfo | null; update: UpdateStatus | null }) {
   const [s, setS] = useState<S | null>(null);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
+  const [checking, setChecking] = useState(false);
   useEffect(() => { api.settings().then(setS).catch((e) => setErr(e.message)); }, []);
   if (!s) return <div className="page muted">{err || "…"}</div>;
 
@@ -80,6 +82,40 @@ export function Settings({ info }: { info: SystemInfo | null }) {
           <Field label="comfyui address">
             <input className="input" value={s.comfyUrl} onChange={(e) => set("comfyUrl", e.target.value)} />
           </Field>
+        </div>
+      </Panel>
+
+      <div style={{ height: 12 }} />
+      <Panel title="updates">
+        <div className="col">
+          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+            <span className="mono">ArcFlare {update?.current ?? "…"}</span>
+            <span className="muted">{updateText(update)}</span>
+            <span className="grow" />
+            {update?.state === "ready" && (
+              <button className="btn sm primary" onClick={() => updates.install().catch((e) => setErr(e.message))}>restart and install</button>
+            )}
+            {update?.state === "available" && update.url && (
+              <button className="btn sm" onClick={() => api.openExternal(update.url!)}>open release page</button>
+            )}
+            <button
+              className="btn sm"
+              disabled={checking || update?.mode === "none"}
+              onClick={async () => { setChecking(true); try { await updates.check(); } catch (e) { setErr((e as Error).message); } setChecking(false); }}
+            >
+              {checking ? "checking…" : "check now"}
+            </button>
+          </div>
+          <label className="row" style={{ gap: 8 }}>
+            <input type="checkbox" checked={s.desktopUpdates} onChange={(e) => set("desktopUpdates", e.target.checked)} />
+            Check for updates when the app starts and every 6 hours (downloads in the background; installs when you restart)
+          </label>
+          {update?.mode === "link" && (
+            <p className="muted" style={{ margin: 0 }}>
+              This build can&apos;t replace itself (macOS builds aren&apos;t signed yet, and .deb installs are managed by apt), so new
+              versions link to the download page instead.
+            </p>
+          )}
         </div>
       </Panel>
 
