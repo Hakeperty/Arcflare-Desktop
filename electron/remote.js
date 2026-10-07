@@ -118,7 +118,8 @@ module.exports = function createRemote(eng) {
     try {
       await s.open();
     } catch (e) {
-      throw new Error(`could not reach the relay at ${relay}: ${e.message}`);
+      // A switched-off relay already says so plainly; anything else is a reach problem.
+      throw new Error(e.status === 503 ? e.message : `could not reach the relay at ${relay}: ${e.message}`);
     }
     session = s;
     lastNote = "relay connected";

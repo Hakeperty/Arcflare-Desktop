@@ -1,7 +1,7 @@
 // "Control from your phone": the QR code for the remote-control link, its
 // status, and the switch. The conversation itself shows in Chat as "Phone".
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { on, rc, type RcStatus } from "../lib/api";
 
 /** Live remote-control status, shared by the title bar, the panel and Chat. */
@@ -35,10 +35,15 @@ export function PhonePanel({ status, onClose, onOpenChat }: { status: RcStatus |
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
 
+  // A second click that lands just after the switch flipped (a double click,
+  // or a click queued while it was starting) must not undo it straight away.
+  const flipped = useRef(0);
   async function toggle() {
+    if (Date.now() - flipped.current < 1500) return;
     setBusy(true);
     setErr("");
     try { if (status?.on) await rc.stop(); else await rc.start(); } catch (e) { setErr((e as Error).message); }
+    flipped.current = Date.now();
     setBusy(false);
   }
 
