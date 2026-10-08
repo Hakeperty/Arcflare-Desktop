@@ -3,6 +3,7 @@ import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInf
 import { useJobs } from "./ui/kit";
 import { Home } from "./views/Home";
 import { Chat } from "./views/Chat";
+import { Agent } from "./views/Agent";
 import { Studio } from "./views/Studio";
 import { Models } from "./views/Models";
 import { Harnesses } from "./views/Harnesses";
@@ -11,16 +12,17 @@ import { Jobs } from "./views/Jobs";
 import { PhoneButton, PhonePanel, useRemote } from "./ui/Phone";
 import { UpdatePill, useUpdates } from "./ui/Update";
 
-export type View = "home" | "chat" | "studio" | "models" | "harnesses" | "jobs" | "settings";
+export type View = "home" | "chat" | "agent" | "studio" | "models" | "harnesses" | "jobs" | "settings";
 
 const NAV: { id: View; label: string; key: string; group?: string }[] = [
   { id: "home", label: "home", key: "1" },
   { id: "chat", label: "chat", key: "2" },
-  { id: "studio", label: "studio", key: "3" },
-  { id: "models", label: "models", key: "4", group: "machine" },
-  { id: "harnesses", label: "harnesses", key: "5" },
-  { id: "jobs", label: "jobs", key: "6" },
-  { id: "settings", label: "settings", key: "7" },
+  { id: "agent", label: "agent", key: "3" },
+  { id: "studio", label: "studio", key: "4" },
+  { id: "models", label: "models", key: "5", group: "machine" },
+  { id: "harnesses", label: "harnesses", key: "6" },
+  { id: "jobs", label: "jobs", key: "7" },
+  { id: "settings", label: "settings", key: "8" },
 ];
 
 export function App() {
@@ -53,7 +55,7 @@ export function App() {
     return () => offs.forEach((f) => f());
   }, []);
 
-  // Ctrl/Cmd + 1..7 switch views, like tabs in a browser.
+  // Ctrl/Cmd + 1..8 switch views, like tabs in a browser.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -108,6 +110,7 @@ export function App() {
         <main className="main">
           {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} />}
           {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />}
+          {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
           {view === "models" && <Models loaded={loaded} progress={progress} go={setView} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}

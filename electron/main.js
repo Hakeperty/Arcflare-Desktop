@@ -13,6 +13,7 @@ const { pathToFileURL } = require("url");
 const eng = require("./engine");
 const image = require("./image");
 const remote = require("./remote")(eng);
+const agents = require("./agent")(eng);
 const updater = require("./updater")({
   send: (ch, p) => send(ch, p),
   // On unless switched off in Settings; stored in the shared config.json.
@@ -98,7 +99,7 @@ function send(channel, payload) {
 }
 
 // Engine events → renderer.
-for (const ev of ["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update", "rc:status", "rc:turn"]) {
+for (const ev of ["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update", "rc:status", "rc:turn", "agent:item", "agent:delta", "agent:status"]) {
   eng.bus.on(ev, (p) => {
     if (ev === "job:update" && p.state === "done" && p.result && p.result.file) grant(p.result.file);
     send(ev, p);
@@ -159,6 +160,29 @@ handle("rc:stop", () => remote.stop());
 handle("rc:status", () => remote.status());
 handle("rc:say", (text) => remote.say(text));
 handle("rc:clear", () => remote.clear());
+
+// The coding agent, on a folder the person picked (see agent.js).
+// Folders picked for the agent are remembered, so they reopen without the
+// dialog after a restart; anything else has to come through the picker.
+const RECENT = path.join(serve.HOME, "desktop-agent-folders.json");
+function recentFolders() { try { return JSON.parse(fs.readFileSync(RECENT, "utf8")).filter((x) => typeof x === "string"); } catch { return []; } }
+handle("agent:recent", () => recentFolders().filter((f) => fs.existsSync(f)));
+handle("agent:open", (folder, opts) => {
+  const dir = path.resolve(String(folder || ""));
+  if (!granted.has(dir) && !recentFolders().includes(dir)) throw new Error("pick the folder with the folder button");
+  const r = agents.open(dir, opts || {});
+  const list = [dir, ...recentFolders().filter((f) => f !== dir)].slice(0, 8);
+  try { fs.mkdirSync(serve.HOME, { recursive: true }); fs.writeFileSync(RECENT, JSON.stringify(list, null, 2)); } catch { /* not fatal */ }
+  return r;
+});
+handle("agent:state", (id) => agents.state(id));
+handle("agent:list", () => agents.list());
+handle("agent:send", (id, text) => agents.send(id, text));
+handle("agent:stop", (id) => agents.stop(id));
+handle("agent:answer", (id, approvalId, allow, always) => agents.answer(id, approvalId, allow, always));
+handle("agent:auto", (id, on) => agents.setAuto(id, on));
+handle("agent:clear", (id) => agents.clear(id));
+handle("agent:close", (id) => agents.close(id));
 handle("edit:plan", (req) => eng.planEdit(req));
 
 handle("gen:status", () => eng.genStatus());
@@ -256,6 +280,7 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   updater.stop();
   remote.shutdown();
+  agents.shutdown();
   // llama-server is started detached so the CLI can share it; the app stops it
   // on quit unless the person chose to keep it (Settings).
   eng.shutdown({ stopServer: serve.loadConfig().stopServerOnQuit !== false });

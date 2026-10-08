@@ -224,3 +224,37 @@ export const updates = {
   check: () => call<UpdateStatus>("update:check"),
   install: () => call<boolean>("update:install"),
 };
+
+// ----------------------------------------------------------------- agent ----
+
+export type AgentItem =
+  | { id: string; kind: "user"; text: string }
+  | { id: string; kind: "assistant"; content: string; reasoning: string; done: boolean }
+  | { id: string; kind: "tool"; name: string; detail: string; args: string; out: string | null; state: "running" | "done" | "error" }
+  | { id: string; kind: "approval"; what: string; detail: string; state: string }
+  | { id: string; kind: "note"; text: string }
+  | { id: string; kind: "error"; text: string };
+
+export type AgentStats = { steps: number; toolCalls: number; tokPerSec: number | null; seconds: number };
+
+export type AgentSession = {
+  sessionId: string; folder: string; branch: string | null; model: string | null;
+  auto: boolean; machine: boolean; busy: boolean; stopping: boolean;
+  notes: string[]; stats: AgentStats | null; items: AgentItem[];
+};
+
+export type AgentStatusEvent = { sessionId: string; busy: boolean; stopping: boolean; auto: boolean; stats: AgentStats | null; model: string | null };
+export type AgentItemEvent = { sessionId: string; item: AgentItem };
+export type AgentDeltaEvent = { sessionId: string; itemId: string; kind: "content" | "reasoning"; text: string };
+
+export const agent = {
+  recent: () => call<string[]>("agent:recent"),
+  open: (folder: string, opts?: { machine?: boolean }) => call<AgentSession>("agent:open", folder, opts ?? {}),
+  state: (id: string) => call<AgentSession>("agent:state", id),
+  send: (id: string, text: string) => call<{ ok: boolean; stats: AgentStats | null }>("agent:send", id, text),
+  stop: (id: string) => call<boolean>("agent:stop", id),
+  answer: (id: string, approvalId: string, allow: boolean, always = false) => call<boolean>("agent:answer", id, approvalId, allow, always),
+  auto: (id: string, on: boolean) => call<boolean>("agent:auto", id, on),
+  clear: (id: string) => call<AgentSession>("agent:clear", id),
+  close: (id: string) => call<void>("agent:close", id),
+};

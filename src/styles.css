@@ -204,3 +204,9 @@ textarea, input, .selectable { user-select: text; }
 .qr.dim { opacity: .25; filter: blur(2px); }
 .linkbox { font: 11.5px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--border); padding: 8px 10px; word-break: break-all; user-select: text; }
 .from-phone { font: 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+
+/* ---- agent ---- */
+.agent-tool { border: 1px solid var(--border); background: var(--surface); }
+.agent-tool-h { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; background: none; border: none; cursor: pointer; font: 12px var(--mono); color: var(--fg); min-width: 0; }
+.agent-tool-h:hover { background: var(--surface-2); }
+.agent-approval { border: 1px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; }

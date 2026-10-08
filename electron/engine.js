@@ -454,7 +454,7 @@ function shutdown({ stopServer = true } = {}) {
 }
 
 module.exports = {
-  bus, systemInfo, listModels, loadModel, unloadModel, chat, stopChat, planEdit,
+  bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
   harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,

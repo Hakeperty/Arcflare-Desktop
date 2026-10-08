@@ -1,7 +1,7 @@
 {
   "name": "arcflare-desktop",
   "productName": "ArcFlare",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "ArcFlare desktop: chat, studio (image, 3D, speech, flows) and harnesses for local models, without the command line. Built on the ArcFlare engine (github.com/Hakeperty/ArcFlare-Code).",
   "private": true,
   "main": "electron/main.js",
