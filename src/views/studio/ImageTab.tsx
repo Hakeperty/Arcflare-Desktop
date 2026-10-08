@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, fileUrl, type ImageModels, type StudioFile } from "../../lib/api";
-import { Field, JobStatus, Panel, useJob } from "../../ui/kit";
+import { Field, JobStatus, Panel, useJob, EmptyState } from "../../ui/kit";
 import type { Handoff } from "../Studio";
 
 const SIZES: [number, number, string][] = [[512, 512, "512 square"], [768, 768, "768 square"], [1024, 1024, "1024 square"], [768, 512, "768×512 wide"], [512, 768, "512×768 tall"], [1024, 576, "1024×576 16:9"]];
@@ -110,7 +110,9 @@ export function ImageTab({ handoff }: { handoff: Handoff }) {
         <div className="gridbg" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, padding: 20 }}>
           {current
             ? <img src={fileUrl(current)} style={{ maxWidth: "100%", maxHeight: "100%", border: "1px solid var(--border)", imageRendering: "auto" }} />
-            : <div className="empty">Your images appear here.</div>}
+            : <EmptyState seed="studio-image" title="Your images appear here">
+                Describe one on the left and press <b>generate</b>. It runs on this GPU; nothing is uploaded.
+              </EmptyState>}
         </div>
         {current && (
           <div className="row" style={{ padding: "8px 14px", borderTop: "1px solid var(--border)" }}>

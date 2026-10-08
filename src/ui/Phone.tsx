@@ -57,7 +57,7 @@ export function PhonePanel({ status, onClose, onOpenChat }: { status: RcStatus |
 
   return (
     <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-label="Control from your phone">
+      <div className="modal marks" role="dialog" aria-label="Control from your phone">
         <div className="modal-h">
           <span className="a" style={{ color: "var(--accent)" }}>[ rc ]</span> {"//"} control from your phone
           <span className="grow" />

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, rc, uid, type ChatMessage, type LoadedModel, type LocalModel, type ModelProgress, type RcStatus, type RcTurnEvent } from "../lib/api";
 import { Markdown } from "../ui/md";
-import { Progress, fmtCtx } from "../ui/kit";
+import { Progress, fmtCtx, EmptyState } from "../ui/kit";
 import { progressText, type View } from "../App";
 
 type Turn = ChatMessage & { id: string; reasoning?: string; tokPerSec?: number | null; error?: string };
@@ -174,11 +174,18 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
           onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 24px" }} className="col">
             {convo.turns.length === 0 && (
-              <div className="empty" style={{ marginTop: 40 }}>
-                {loaded ? <>Ask anything. It runs on <b>{loaded.name}</b>, on this computer.</>
-                  : models.length ? <>Pick a model above and press <b>load</b>.</>
-                    : <>No models yet. Get one from <a href="#" onClick={(e) => { e.preventDefault(); go("models"); }}>Models</a>.</>}
-              </div>
+              loaded
+                ? <EmptyState seed={`chat-${loaded.id}`} title={`Ask ${loaded.name} anything`}>
+                    It runs on this computer. Nothing you type is sent anywhere.
+                  </EmptyState>
+                : models.length
+                  ? <EmptyState seed="chat-load" title="Pick a model and press load">
+                      ArcFlare sizes its context to the VRAM you have free, then you can chat.
+                    </EmptyState>
+                  : <EmptyState seed="chat-none" title="No models yet"
+                      action={<button className="btn primary" onClick={() => go("models")}>get one</button>}>
+                      Download one that fits your GPU from the hub.
+                    </EmptyState>
             )}
             {convo.turns.map((t) => <TurnView key={t.id} t={t} streaming={busy !== null && t === convo.turns[convo.turns.length - 1]} />)}
           </div>
@@ -279,10 +286,11 @@ function PhoneConversation({ remote, loaded, openPhone }: { remote: RcStatus | n
       <div ref={scroller} className="selectable" style={{ flex: 1, overflowY: "auto", padding: "18px 0" }}>
         <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 24px" }} className="col">
           {turns.length === 0 && !live && (
-            <div className="empty" style={{ marginTop: 40 }}>
-              {remote?.on ? <>Waiting for your phone. Messages typed there show up here, and the model answers on this computer.</>
-                : <>Press <b>connect a phone</b> and scan the code. Your phone gets a chat with the model on this computer, from anywhere.</>}
-            </div>
+            <EmptyState seed="phone" title={remote?.on ? "Waiting for your phone" : "Chat from your phone"}
+              action={remote?.on ? undefined : <button className="btn primary" onClick={openPhone}>connect a phone</button>}>
+              {remote?.on ? <>Messages typed there show up here, and the model answers on this computer.</>
+                : <>Scan the code with your phone&apos;s camera. It gets a chat with the model on this computer, from any network.</>}
+            </EmptyState>
           )}
           {turns.map((t) => (
             <div key={t.id} className="col" style={{ gap: 0, alignItems: t.role === "user" ? "flex-end" : "stretch" }}>

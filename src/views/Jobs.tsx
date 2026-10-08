@@ -2,15 +2,19 @@
 // cancel, and the file each one made.
 
 import { api, type Job } from "../lib/api";
-import { JobStatus, Label, Panel } from "../ui/kit";
+import { EmptyState, JobStatus, Panel, ViewHead } from "../ui/kit";
 
 export function Jobs({ jobs }: { jobs: Job[] }) {
   return (
     <div className="page">
-      <Label index="06">jobs</Label>
-      <div className="h1">Jobs</div>
-      <p className="muted" style={{ marginTop: 0 }}>Downloads, setups and generations from this session. They keep running when you switch screens.</p>
-      {jobs.length === 0 && <div className="empty">Nothing yet. Generate something in the Studio, or download a model.</div>}
+      <ViewHead index="07" label="jobs" title="Jobs">
+        Downloads, setups and generations from this session. They keep running when you switch screens.
+      </ViewHead>
+      {jobs.length === 0 && (
+        <EmptyState seed="no-jobs" title="Nothing running">
+          Generate something in the Studio or download a model, and it shows up here with its progress and log.
+        </EmptyState>
+      )}
       <div className="col" style={{ gap: 12 }}>
         {jobs.map((j) => (
           <Panel key={j.id} title={`${j.kind} · ${j.id}`} right={

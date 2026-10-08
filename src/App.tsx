@@ -101,7 +101,7 @@ export function App() {
             </div>
           ))}
           <span className="grow" />
-          <div className="label" style={{ padding: "8px 10px", lineHeight: 1.8 }}>
+          <div className="label foot" style={{ lineHeight: 1.8 }}>
             engine {info?.engineVersion ?? "…"}<br />
             {info?.llamaServer ? <span style={{ color: "var(--accent-2)" }}>llama.cpp found</span> : <span style={{ color: "var(--danger)" }}>no llama.cpp</span>}
           </div>
@@ -112,7 +112,7 @@ export function App() {
           {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />}
           {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
-          {view === "models" && <Models loaded={loaded} progress={progress} go={setView} />}
+          {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}
           {view === "jobs" && <Jobs jobs={jobs} />}
           {view === "settings" && <Settings info={info} update={update} />}

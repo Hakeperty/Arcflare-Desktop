@@ -3,10 +3,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, type HubModel, type LoadedModel, type LocalModel, type ModelProgress } from "../lib/api";
-import { JobStatus, Label, Progress, fmtCtx, useJob } from "../ui/kit";
+import { EmptyState, JobStatus, Meter, Progress, ViewHead, fmtCtx, useJob } from "../ui/kit";
 import { progressText, type View } from "../App";
 
-export function Models({ loaded, progress, go }: { loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void }) {
+export function Models({ loaded, progress, go, freeGb }: { loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void; freeGb?: number | null }) {
   const [tab, setTab] = useState<"local" | "hub">("local");
   return (
     <div className="page flush">
@@ -14,12 +14,12 @@ export function Models({ loaded, progress, go }: { loaded: LoadedModel | null; p
         <button className={`tab${tab === "local" ? " on" : ""}`} onClick={() => setTab("local")}>on this machine</button>
         <button className={`tab${tab === "hub" ? " on" : ""}`} onClick={() => setTab("hub")}>hub</button>
       </div>
-      <div className="page">{tab === "local" ? <Local loaded={loaded} progress={progress} go={go} /> : <Hub />}</div>
+      <div className="page">{tab === "local" ? <Local loaded={loaded} progress={progress} go={go} freeGb={freeGb ?? null} /> : <Hub />}</div>
     </div>
   );
 }
 
-function Local({ loaded, progress, go }: { loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void }) {
+function Local({ loaded, progress, go, freeGb }: { loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void; freeGb: number | null }) {
   const [list, setList] = useState<LocalModel[] | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -33,11 +33,9 @@ function Local({ loaded, progress, go }: { loaded: LoadedModel | null; progress:
   if (!list) return <div className="muted">Reading GGUF headers…</div>;
   return (
     <>
-      <Label index="04">models</Label>
-      <div className="h1">On this machine</div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        GGUF models ArcFlare found in your llama.cpp cache and model folders. Loading sizes the context to the VRAM that's actually free.
-      </p>
+      <ViewHead index="05" label="models" title="On this machine">
+        GGUF models ArcFlare found in your llama.cpp cache and model folders. Loading sizes the context to the VRAM that&apos;s actually free.
+      </ViewHead>
       {err && <div className="err" style={{ marginBottom: 10 }}>{err}</div>}
       {progress && busy && !["loaded", "failed"].includes(progress.stage) && (
         <div className="panel" style={{ padding: 10, marginBottom: 12 }}>
@@ -46,13 +44,13 @@ function Local({ loaded, progress, go }: { loaded: LoadedModel | null; progress:
         </div>
       )}
       {list.length === 0 && (
-        <div className="empty">No models yet. Open the <b>hub</b> tab, pick one that fits, and download it.</div>
+        <EmptyState seed="no-models" title="No models yet">Open the <b>hub</b> tab, pick one that fits your GPU, and download it.</EmptyState>
       )}
       <div className="col" style={{ gap: 8 }}>
         {list.map((m) => {
           const isLoaded = loaded?.id === m.id;
           return (
-            <div key={m.id} className="card row" style={{ gap: 14 }}>
+            <div key={m.id} className={`card model-row${isLoaded ? " loaded" : ""}`}>
               <span className={`led ${isLoaded ? "on" : m.fits === false ? "err" : "off"}`} />
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="mono truncate" style={{ fontWeight: 600 }}>{m.id}</div>
@@ -61,10 +59,13 @@ function Local({ loaded, progress, go }: { loaded: LoadedModel | null; progress:
                   {m.bestCtx ? ` · ${fmtCtx(m.bestCtx)} fits now` : ""}
                 </div>
               </div>
-              {m.fits === false && <span className="chip bad">bigger than free VRAM</span>}
+              {freeGb
+                ? <Meter need={m.sizeGb} of={isLoaded ? m.sizeGb + freeGb : freeGb}
+                    label={isLoaded ? "loaded" : m.sizeGb <= freeGb ? `${Math.round((m.sizeGb / freeGb) * 100)}% of free VRAM` : "bigger than free VRAM"} />
+                : <span />}
               {isLoaded
-                ? <button className="btn sm" onClick={() => go("chat")}>chat</button>
-                : <button className="btn primary sm" disabled={!!busy} onClick={() => load(m.id)}>{busy === m.id ? "loading…" : "load"}</button>}
+                ? <button className="btn sm on" onClick={() => go("chat")}>chat →</button>
+                : <button className={`btn sm${busy === m.id ? " on" : ""}`} disabled={!!busy} onClick={() => load(m.id)}>{busy === m.id ? "loading…" : "load"}</button>}
             </div>
           );
         })}
@@ -103,17 +104,12 @@ function Hub() {
   if (!data) return <div className="muted">{err || "Loading the hub…"}</div>;
   return (
     <>
-      <div className="row">
-        <div className="grow">
-          <Label index="hub">arcflare.net</Label>
-          <div className="h1">The hub</div>
-        </div>
+      <ViewHead index="hub" label="arcflare.net" title="The hub" right={<>
         <span className={`chip ${data.source === "live" ? "ok" : "warn"}`}>{data.source === "live" ? "live" : data.source === "cache" ? `offline · ${data.ageText}` : "offline · bundled copy"}</span>
         <button className="btn sm" onClick={() => load(true)}>refresh</button>
-      </div>
-      <p className="muted" style={{ marginTop: 0 }}>
+      </>}>
         {data.freeGb ? <>Marked against the <b>{data.freeGb.toFixed(1)} GB</b> free on your GPU. </> : null}Smallest first.
-      </p>
+      </ViewHead>
       <div className="row wrap" style={{ marginBottom: 12 }}>
         {CATS.map((c) => <button key={c} className={`btn sm${cat === c ? " on" : ""}`} onClick={() => setCat(c)}>{c}</button>)}
         <input className="input" style={{ maxWidth: 240, marginLeft: "auto" }} placeholder="search" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -146,7 +142,7 @@ function Hub() {
           </div>
         ))}
       </div>
-      {shown.length === 0 && <div className="empty">Nothing here. Try another shelf, or "All".</div>}
+      {shown.length === 0 && <EmptyState seed="hub-empty" title="Nothing on this shelf">Try another category, or &quot;All&quot;.</EmptyState>}
     </>
   );
 }

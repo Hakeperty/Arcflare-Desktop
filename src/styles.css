@@ -210,3 +210,71 @@ textarea, input, .selectable { user-select: text; }
 .agent-tool-h { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; background: none; border: none; cursor: pointer; font: 12px var(--mono); color: var(--fg); min-width: 0; }
 .agent-tool-h:hover { background: var(--surface-2); }
 .agent-approval { border: 1px solid var(--accent); background: var(--accent-soft); padding: 12px 14px; }
+
+/* ------------------------------------------------------------ polish (v0.5) */
+
+/* Native controls in the accent colour instead of the browser's blue. */
+input[type="checkbox"], input[type="radio"], input[type="range"], progress { accent-color: var(--accent); }
+:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+/* Quiet, quick transitions on things you point at. */
+.btn, .nav, .card, .tab, .chip, .agent-tool-h { transition: border-color .12s, color .12s, background-color .12s; }
+
+/* View header: label, title, one line, optional controls. */
+.view-head { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.view-head .h1 { margin: 6px 0 2px; }
+.view-head-p { margin: 4px 0 0; color: var(--muted); max-width: 720px; }
+
+/* Corner marks on panels, like the website's instrument frames. */
+.marks { position: relative; }
+.marks::before, .marks::after { content: ""; position: absolute; width: 8px; height: 8px; pointer-events: none; }
+.marks::before { left: -1px; top: -1px; border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); }
+.marks::after { right: -1px; bottom: -1px; border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); }
+
+/* Cards that go somewhere lift their border and show the corner marks. */
+.card.click { position: relative; }
+.card.click::before, .card.click::after { content: ""; position: absolute; width: 8px; height: 8px; opacity: 0; transition: opacity .12s; pointer-events: none; }
+.card.click::before { left: -1px; top: -1px; border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); }
+.card.click::after { right: -1px; bottom: -1px; border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); }
+.card.click:hover::before, .card.click:hover::after { opacity: 1; }
+.card .go { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); margin-top: 12px; }
+.card.click:hover .go { color: var(--accent); }
+
+/* Empty states: a small dot-matrix picture, a title, a line, an action. */
+.empty-state { border: 1px dashed var(--border-strong); padding: 26px 24px 24px; text-align: center; max-width: 560px; margin: 24px auto; background: var(--bg); }
+.empty-art { display: block; width: 220px; height: 60px; margin: 0 auto 14px; opacity: .85; }
+.empty-title { font-weight: 600; font-size: 15px; }
+.empty-body { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.55; }
+
+/* Meters: how much of the GPU something takes. */
+.meter-wrap { min-width: 0; }
+.meter { height: 4px; background: var(--surface-3); overflow: hidden; }
+.meter > i { display: block; height: 100%; transition: width .3s; }
+.meter.ok > i { background: var(--accent-2); }
+.meter.warn > i { background: var(--accent); }
+.meter.bad > i { background: var(--danger); }
+.meter-label { font: 10.5px var(--mono); color: var(--muted-2); margin-top: 4px; }
+
+/* Home banner. */
+.banner { position: relative; overflow: hidden; border: 1px solid var(--border); background: var(--surface); padding: 22px 24px; margin-bottom: 16px; }
+.banner-art { position: absolute; inset: 0 0 0 auto; width: 55%; height: 100%; opacity: .55;
+  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent); mask-image: linear-gradient(to left, #000 35%, transparent); }
+.banner > :not(.banner-art) { position: relative; }
+
+/* Model rows. */
+.model-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 180px auto; align-items: center; gap: 14px; }
+.model-row.loaded { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); box-shadow: inset 2px 0 0 var(--accent-2); }
+
+/* Sidebar: the section label gets a hairline, the active item a brighter bar. */
+.nav-group { display: flex; align-items: center; gap: 8px; }
+.nav-group::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.sidebar .foot { border-top: 1px solid var(--border); margin: 6px -8px -10px; padding: 10px 18px 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .nav, .card, .tab, .chip, .meter > i, .card.click::before, .card.click::after { transition: none; }
+}
+
+/* Colour pickers: a swatch in a hairline frame, not the browser's white box. */
+input[type="color"] { -webkit-appearance: none; appearance: none; border: 1px solid var(--border-strong); background: var(--bg); padding: 3px; height: 28px; cursor: pointer; }
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+input[type="color"]::-webkit-color-swatch { border: none; }

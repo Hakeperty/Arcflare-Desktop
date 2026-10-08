@@ -84,6 +84,15 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
   };
   const [, force] = useState(0);
   useEffect(() => { force((n) => n + 1); }, [graph, view]);
+  // Measure again when the canvas appears or resizes: a tab that mounted while
+  // hidden measured every port at 0,0, which drew all the wires as dots.
+  useEffect(() => {
+    const el = canvas.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => force((n) => n + 1));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function onWheel(e: React.WheelEvent) {
     const r = canvas.current!.getBoundingClientRect();

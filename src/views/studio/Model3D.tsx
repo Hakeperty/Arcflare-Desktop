@@ -432,8 +432,12 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
           <button className="btn sm" onClick={() => runOps([{ op: "flatten", strength: 0.6 }], "button")}>flatten</button>
           <button className="btn sm" onClick={() => runOps([{ op: "move", dx: 0, dy: 0.03, dz: 0 }], "button")}>up</button>
           <button className="btn sm" onClick={() => runOps([{ op: "move", dx: 0, dy: -0.03, dz: 0 }], "button")}>down</button>
-          <input type="color" className="input" style={{ height: 26, padding: 2 }} title="paint the selection"
-            onChange={(e) => runOps([{ op: "color", hex: e.target.value }], "button")} />
+          {/* A labelled swatch: a bare colour input reads as an empty box. */}
+          <label className="btn sm" style={{ gap: 6, cursor: "pointer" }} title="paint the selection">
+            <input type="color" defaultValue="#ffb020" style={{ width: 16, height: 16, padding: 0, border: 0, background: "none", cursor: "pointer" }}
+              onChange={(e) => runOps([{ op: "color", hex: e.target.value }], "button")} />
+            paint
+          </label>
           <button className="btn sm danger" onClick={() => runOps([{ op: "delete" }], "button")}>delete</button>
         </div>
 

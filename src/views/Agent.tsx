@@ -2,6 +2,7 @@
 // terminal. The session lives in the main process (see electron/agent.js);
 // this screen shows its transcript, asks before commands run, and can stop it.
 
+import { EmptyState } from "../ui/kit";
 import { useEffect, useRef, useState } from "react";
 import {
   agent, api, on,
@@ -40,7 +41,10 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   useEffect(() => {
     agent.recent().then(setRecent).catch(() => {});
     const last = read(FOLDER);
-    if (last) openFolder(last);
+    if (last) {
+      agent.open(last, { machine }).then((s) => { setSession(s); agent.recent().then(setRecent).catch(() => {}); })
+        .catch(() => write(FOLDER, ""));   // moved or deleted since: just start without it
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates for the open session.
@@ -113,7 +117,9 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
     <div className="page flush" style={{ flexDirection: "column" }}>
       {/* folder + controls */}
       <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn sm primary" onClick={pick}>{session ? "folder…" : "open a folder"}</button>
+        {session
+          ? <button className="btn sm" onClick={pick} title="Open another folder">folder…</button>
+          : <span className="label"><span className="a">[ 03 ]</span> {"//"} agent · no folder open</span>}
         {recent.length > 1 && (
           <select className="select" style={{ maxWidth: 220 }} value={session?.folder ?? ""} onChange={(e) => e.target.value && openFolder(e.target.value)}>
             <option value="">recent folders</option>
@@ -154,23 +160,26 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
         onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px" }} className="col">
           {!session && (
-            <div className="empty" style={{ marginTop: 40 }}>
-              The coding agent reads, edits and runs things in a folder you choose, using the model on this computer.
-              <div style={{ marginTop: 14 }}><button className="btn primary" onClick={pick}>open a folder</button></div>
-            </div>
+            <EmptyState seed="agent-folder" title="Point the agent at a folder"
+              action={<>
+                <button className="btn primary" onClick={pick}>open a folder</button>
+                {recent.length > 0 && <button className="btn" onClick={() => openFolder(recent[0])}>reopen {recent[0].split(/[\/]/).filter(Boolean).pop()}</button>}
+              </>}>
+              The coding agent reads, edits and runs things in a folder you choose, using the model on this computer. It asks
+              before running commands unless you switch on auto mode.
+            </EmptyState>
           )}
           {session && !loaded && (
-            <div className="empty" style={{ marginTop: 20 }}>
-              The agent needs a model. Load one first —{" "}
-              <a href="#" onClick={(e) => { e.preventDefault(); go("chat"); }}>Chat</a> or{" "}
-              <a href="#" onClick={(e) => { e.preventDefault(); go("models"); }}>Models</a>. A 20–35B coding model works best.
-            </div>
+            <EmptyState seed="agent-model" title="Load a model first"
+              action={<><button className="btn primary" onClick={() => go("models")}>models</button><button className="btn" onClick={() => go("chat")}>chat</button></>}>
+              The agent uses the model loaded in this app. A 20–35B coding model works best.
+            </EmptyState>
           )}
           {session && loaded && session.items.length === 0 && (
-            <div className="empty" style={{ marginTop: 40 }}>
-              Ask for something in <b>{name}</b>: "explain this project", "fix the failing test", "add a README".
+            <EmptyState seed={`agent-${name}`} title={`Ready in ${name}`}>
+              Ask for something: &quot;explain this project&quot;, &quot;fix the failing test&quot;, &quot;add a README&quot;.
               It shows every file it reads and asks before running a command.
-            </div>
+            </EmptyState>
           )}
           {session?.items.map((it, i) => (
             <ItemView key={it.id} it={it} live={busy && i === session.items.length - 1}

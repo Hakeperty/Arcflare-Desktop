@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Harness, type LoadedModel } from "../lib/api";
-import { Label } from "../ui/kit";
+import { ViewHead } from "../ui/kit";
 
 const ABOUT: Record<string, string> = {
   agent: "ArcFlare's own coding agent: reads and edits files, runs commands (it asks first), uses MCP tools and skills.",
@@ -29,25 +29,23 @@ export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
 
   return (
     <div className="page">
-      <Label index="05">harnesses</Label>
-      <div className="h1">Harnesses</div>
-      <p className="muted" style={{ marginTop: 0, maxWidth: 680 }}>
+      <ViewHead index="06" label="harnesses" title="Harnesses">
         Already use a coding agent? Open it here and it talks to the model on your GPU instead of a cloud API. ArcFlare
         writes its config (backing up yours first) and opens it in a terminal.
-      </p>
+      </ViewHead>
       {msg && <div className="panel" style={{ padding: 10, marginBottom: 12, borderColor: "var(--accent-2)" }}>{msg}</div>}
       <div className="grid3">
         {list.map((h) => (
-          <div key={h.id} className="card">
+          <div key={h.id} className={`card col${h.installed ? " click" : ""}`} style={{ gap: 0 }} onClick={() => h.installed && launch(h)}>
             <div className="row">
               <span className={`led ${h.installed ? "on" : "off"}`} />
               <span className="h2 grow">{h.label}</span>
               {h.builtin && <span className="chip">built in</span>}
             </div>
-            <p className="muted" style={{ fontSize: 13 }}>{ABOUT[h.id] || ""}</p>
+            <p className="muted" style={{ fontSize: 13, flex: 1 }}>{ABOUT[h.id] || ""}</p>
             {h.installed
-              ? <button className="btn primary sm" onClick={() => launch(h)}>open</button>
-              : <span className="dim mono" style={{ fontSize: 12 }}>not installed</span>}
+              ? <div className="go">open in a terminal →</div>
+              : <div className="go" style={{ color: "var(--muted-2)" }}>not installed</div>}
           </div>
         ))}
       </div>

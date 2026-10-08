@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { api, updates, type Settings as S, type SystemInfo, type UpdateStatus } from "../lib/api";
 import { updateText } from "../ui/Update";
-import { Field, Label, Panel } from "../ui/kit";
+import { Field, Panel, ViewHead } from "../ui/kit";
 
 export function Settings({ info, update }: { info: SystemInfo | null; update: UpdateStatus | null }) {
   const [s, setS] = useState<S | null>(null);
@@ -25,10 +25,11 @@ export function Settings({ info, update }: { info: SystemInfo | null; update: Up
   };
 
   return (
-    <div className="page" style={{ maxWidth: 820 }}>
-      <Label index="07">settings</Label>
-      <div className="h1">Settings</div>
-      <p className="muted" style={{ marginTop: 0 }}>Shared with the <code className="md-code">arcflare</code> command line: change it in either place.</p>
+    <div className="page">
+     <div style={{ maxWidth: 820 }}>
+      <ViewHead index="08" label="settings" title="Settings">
+        Shared with the <code className="md-code">arcflare</code> command line: change it in either place.
+      </ViewHead>
 
       <Panel title="engine">
         <div className="col">
@@ -126,6 +127,7 @@ export function Settings({ info, update }: { info: SystemInfo | null; update: Up
         <span className="grow" />
         <button className="btn ghost" onClick={() => api.openStudioFolder()}>open studio folder</button>
       </div>
+     </div>
     </div>
   );
 }
