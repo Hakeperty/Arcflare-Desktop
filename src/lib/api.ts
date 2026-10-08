@@ -158,7 +158,7 @@ export const api = {
   cancelJob: (id: string) => call<void>("jobs:cancel", id),
 
   hub: (refresh?: boolean) => call<{ source: string; url: string; ageText: string; freeGb: number | null; models: HubModel[] }>("hub:catalogue", !!refresh),
-  hubInstall: (slug: string, model: HubModel) => call<Job>("hub:install", slug, model),
+  hubInstall: (slug: string) => call<Job>("hub:install", slug),
 
   harnesses: () => call<Harness[]>("harness:list"),
   launchHarness: (id: string, modelId?: string) => call<boolean>("harness:launch", id, modelId),

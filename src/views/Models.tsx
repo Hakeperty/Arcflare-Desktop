@@ -97,7 +97,7 @@ function Hub() {
 
   async function install(m: HubModel) {
     setErr("");
-    try { const j = await api.hubInstall(m.slug, m); setJobId(j.id); } catch (e) { setErr((e as Error).message); }
+    try { const j = await api.hubInstall(m.slug); setJobId(j.id); } catch (e) { setErr((e as Error).message); }
   }
 
   if (!data) return <div className="muted">{err || "Loading the hub…"}</div>;
