@@ -1,0 +1,46 @@
+# Typecheck, unit + IPC contract tests, and the Electron smoke test (every
+# view opened in the real app, on a virtual display). Runs on every push and
+# pull request, and the release workflow calls it first, so installers are
+# only built from a commit that passes.
+
+name: test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # The app depends on the engine as file:../ArcFlare-Code, so check both
+      # out side by side, like a local setup.
+      - uses: actions/checkout@v4
+        with:
+          path: ArcFlare-Desktop
+      - uses: actions/checkout@v4
+        with:
+          repository: Hakeperty/ArcFlare-Code
+          path: ArcFlare-Code
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        working-directory: ArcFlare-Desktop
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: ArcFlare-Desktop
+        run: npm run typecheck
+
+      - name: Unit and contract tests
+        working-directory: ArcFlare-Desktop
+        run: npm test
+
+      - name: Smoke test (every view, real app)
+        working-directory: ArcFlare-Desktop
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1440x900x24" npm run test:smoke

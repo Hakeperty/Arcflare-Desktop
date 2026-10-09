@@ -15,7 +15,9 @@
     "dist:win": "vite build && electron-builder --win",
     "dist:mac": "vite build && electron-builder --mac",
     "dist:linux": "vite build && electron-builder --linux",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node test/run.mjs",
+    "test:smoke": "vite build && node test/smoke.mjs"
   },
   "dependencies": {
     "arcflare": "file:../ArcFlare-Code",

@@ -16,7 +16,13 @@ permissions:
   contents: write
 
 jobs:
+  # Nothing is built or released unless typecheck, unit, contract and smoke
+  # tests pass on this commit.
+  test:
+    uses: ./.github/workflows/test.yml
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -46,10 +52,6 @@ jobs:
       - name: Install
         working-directory: ArcFlare-Desktop
         run: npm ci
-
-      - name: Typecheck
-        working-directory: ArcFlare-Desktop
-        run: npm run typecheck
 
       - name: Build installers
         working-directory: ArcFlare-Desktop
