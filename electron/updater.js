@@ -9,7 +9,8 @@
 // Where an in-place install can't work, the app says an update is available
 // and links to the release page instead:
 //   * macOS: the builds are unsigned, and Squirrel.Mac refuses unsigned apps.
-//   * Linux .deb: only the AppImage can replace itself.
+//   * Linux .deb and .pacman: only the AppImage can replace itself; the
+//     others belong to apt and pacman.
 //   * Development (not packaged): nothing to update.
 
 const { app } = require("electron");

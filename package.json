@@ -15,6 +15,7 @@
     "dist:win": "vite build && electron-builder --win",
     "dist:mac": "vite build && electron-builder --mac",
     "dist:linux": "vite build && electron-builder --linux",
+    "dist:arch": "vite build && electron-builder --linux pacman",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -76,7 +77,8 @@
     "linux": {
       "target": [
         "AppImage",
-        "deb"
+        "deb",
+        "pacman"
       ],
       "category": "Development",
       "icon": "build/icon.png",
@@ -95,6 +97,19 @@
     },
     "deb": {
       "artifactName": "ArcFlare-linux-${arch}.${ext}"
+    },
+    "pacman": {
+      "artifactName": "ArcFlare-linux-${arch}.${ext}",
+      "depends": [
+        "gtk3",
+        "nss",
+        "alsa-lib",
+        "libxss",
+        "libxtst",
+        "libnotify",
+        "libsecret",
+        "xdg-utils"
+      ]
     },
     "publish": [
       {

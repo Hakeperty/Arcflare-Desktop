@@ -74,8 +74,12 @@ build from a clean machine, switch it to `github:Hakeperty/ArcFlare-Code`.
 ```bash
 npm run dist:win     # NSIS installer
 npm run dist:mac     # .dmg (build on a Mac)
-npm run dist:linux   # AppImage and .deb
+npm run dist:linux   # AppImage, .deb and .pacman
+npm run dist:arch    # just the .pacman (Arch, Manjaro, EndeavourOS)
 ```
+
+The `.pacman` build needs `bsdtar` and `zstd` on the build machine
+(`libarchive-tools zstd` on Debian/Ubuntu; already there on Arch).
 
 The engine is unpacked from the app archive, because Python workers can't read
 files inside it.
@@ -84,6 +88,36 @@ Releases are built by `.github/workflows/release.yml`: push a `v*` tag and it
 builds on Windows, macOS and Linux and attaches the installers, `latest*.yml`
 and blockmaps to a GitHub release.
 
+## Install from a terminal
+
+On Linux and macOS:
+
+```bash
+curl -fsSL https://arcflare.net/install-desktop.sh | sh
+```
+
+It downloads the latest release for your system, checks it against the
+release's `SHA256SUMS`, and installs it:
+
+| System | What it installs |
+| --- | --- |
+| Arch, Manjaro, EndeavourOS (pacman) | the `.pacman`, with `sudo pacman -U` |
+| Debian, Ubuntu (apt) | the `.deb`, with `sudo apt install` |
+| any other Linux | the AppImage in `~/.local/share/arcflare-desktop`, a menu entry and `~/.local/bin/arcflare-desktop`; no root needed |
+| macOS | `ArcFlare.app` in `/Applications` (or `~/Applications`) |
+
+Pick a format with `ARCFLARE_DESKTOP=appimage` (or `deb`, `pacman`):
+`curl -fsSL https://arcflare.net/install-desktop.sh | ARCFLARE_DESKTOP=appimage sh`.
+To remove it, use the same tool (`sudo pacman -R arcflare-desktop`,
+`sudo apt remove arcflare-desktop`), or for the AppImage run the script with
+`ARCFLARE_DESKTOP=uninstall`.
+
+On Arch, pacman can also install straight from the release:
+
+```bash
+sudo pacman -U https://github.com/Hakeperty/Arcflare-Desktop/releases/latest/download/ArcFlare-linux-x64.pacman
+```
+
 ## Updates
 
 The app checks the GitHub releases 10 seconds after it starts and every 6 hours
@@ -91,7 +125,8 @@ The app checks the GitHub releases 10 seconds after it starts and every 6 hours
 downloads the new version in the background, then shows **ready · restart** in
 the title bar. It installs when you click that, or the next time you quit,
 never in the middle of a session. The macOS builds aren't signed, so
-Squirrel.Mac can't replace them, and `.deb` installs belong to apt. There the
+Squirrel.Mac can't replace them, and `.deb` and `.pacman` installs belong to
+apt and pacman. There the
 title bar says **update available** and opens the release page instead.
 
 Settings → updates has **check now**, the current version, and a switch to turn
