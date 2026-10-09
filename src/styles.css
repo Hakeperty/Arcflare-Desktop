@@ -278,3 +278,8 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 input[type="color"] { -webkit-appearance: none; appearance: none; border: 1px solid var(--border-strong); background: var(--bg); padding: 3px; height: 28px; cursor: pointer; }
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 input[type="color"]::-webkit-color-swatch { border: none; }
+
+/* Voice lab: the saved-voice list. */
+.voice-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; font: inherit; }
+.voice-item:hover { background: var(--surface-2); }
+.voice-item.on { border-color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }

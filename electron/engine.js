@@ -381,7 +381,8 @@ function genStatus() {
     id: r.id, kind: r.kind, label: r.label, params: r.params, vram: r.vram, note: r.note,
     cloning: !!r.cloning, instruct: !!r.instruct, text: !!r.text, texture: !!r.texture,
     installed: !!r.repoPresent && !!r.python, weights: !!r.weights, voices: r.voices || null,
-    defaultVoice: r.defaultVoice || null,
+    defaultVoice: r.defaultVoice || null, voiceHints: r.voiceHints || null, emotions: r.emotions || null,
+    cpu: !!r.cpu, license: r.license || null, needsRefText: !!r.needsRefText,
   }));
 }
 

@@ -4,7 +4,7 @@
 // showing generated images, meshes and audio. The renderer runs sandboxed with
 // no Node access; everything it can do is listed in preload.js.
 
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme, systemPreferences } = require("electron");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -194,6 +194,40 @@ handle("gen:3d", (opts) => {
 handle("gen:tts", (opts) => {
   if (opts.ref) grant(opts.ref);
   return eng.speak(opts);
+});
+
+// The voice studio: saved voices live in the engine (~/.arcflare/voices), so
+// `arcflare gen tts --clone <name>` uses the same ones.
+const gv = require("arcflare/lib/gen/voices");
+function publicVoice(v) {
+  grant(v.clip);
+  return { id: v.id, name: v.name, text: v.text || "", lang: v.lang || null, clip: v.clip,
+    seconds: v.seconds, created: v.created, advice: gv.advice(v.seconds) };
+}
+handle("voices:list", () => gv.list().map(publicVoice));
+handle("voices:save", (opts = {}) => {
+  // Only a clip the person recorded here or picked in the dialog.
+  if (!opts.clip || !allowed(opts.clip)) throw new Error("record a clip or pick one with browse");
+  return publicVoice(gv.save({ name: opts.name, clip: opts.clip, text: opts.text, lang: opts.lang, replace: !!opts.replace }));
+});
+handle("voices:update", (id, patch = {}) => publicVoice(gv.update(id, { text: patch.text, lang: patch.lang, label: patch.name })));
+handle("voices:remove", (id) => gv.remove(id));
+handle("voices:writeTake", (bytes) => {
+  // A take recorded in the voice studio, as WAV. Kept apart from the studio's
+  // own outputs so recordings don't fill the speech tab's "recent" list.
+  const dir = path.join(eng.studioDir(), "recordings");
+  fs.mkdirSync(dir, { recursive: true });
+  const buf = Buffer.from(bytes);
+  if (buf.length < 44 || buf.toString("ascii", 0, 4) !== "RIFF") throw new Error("not a WAV recording");
+  const out = path.join(dir, `take-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.wav`);
+  fs.writeFileSync(out, buf);
+  return grant(out);
+});
+handle("voices:micAccess", async () => {
+  // macOS asks once per app; elsewhere the OS does not gate it here.
+  if (process.platform !== "darwin") return true;
+  if (systemPreferences.getMediaAccessStatus("microphone") === "granted") return true;
+  return systemPreferences.askForMediaAccess("microphone");
 });
 
 handle("image:models", () => image.listImageModels(serve.loadConfig()));

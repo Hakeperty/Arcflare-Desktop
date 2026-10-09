@@ -68,7 +68,10 @@
         }
       ],
       "category": "public.app-category.developer-tools",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "ArcFlare records a voice sample in the voice studio, only when you press record. It stays on this computer."
+      }
     },
     "linux": {
       "target": [

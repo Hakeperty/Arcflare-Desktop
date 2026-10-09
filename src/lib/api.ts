@@ -88,6 +88,20 @@ export type GenModel = {
   weights: boolean;
   voices: string[] | null;
   defaultVoice: string | null;
+  /** Some of a model's voices, for suggestions; not a closed list. */
+  voiceHints: string[] | null;
+  /** Emotion tags the model takes in place of a free-form tone. */
+  emotions: string[] | null;
+  cpu: boolean;
+  license: string | null;
+  /** Cloning needs the reference clip's transcript too (qwen3-tts-clone). */
+  needsRefText: boolean;
+};
+
+/** A voice saved in the voice studio (or with `arcflare gen voices add`). */
+export type SavedVoice = {
+  id: string; name: string; text: string; lang: string | null; clip: string;
+  seconds: number | null; created: string; advice: string | null;
 };
 
 export type Job = {
@@ -143,8 +157,15 @@ export const api = {
   genSetup: (id: string, opts?: { torch?: string; torchFrom?: string; texture?: boolean }) => call<Job>("gen:setup", id, opts ?? {}),
   gen3d: (opts: { model: string; image?: string; prompt?: string; steps?: number; octree?: number; faces?: number; seed?: number; texture?: boolean }) =>
     call<Job>("gen:3d", opts),
-  tts: (opts: { model: string; text: string; voice?: string; ref?: string; refText?: string; lang?: string; instruct?: string; speed?: number }) =>
+  tts: (opts: { model: string; text: string; voice?: string; ref?: string; refText?: string; clone?: string; lang?: string; instruct?: string; speed?: number }) =>
     call<Job>("gen:tts", opts),
+
+  voices: () => call<SavedVoice[]>("voices:list"),
+  saveVoice: (opts: { name: string; clip: string; text?: string; lang?: string | null; replace?: boolean }) => call<SavedVoice>("voices:save", opts),
+  updateVoice: (id: string, patch: { name?: string; text?: string; lang?: string | null }) => call<SavedVoice>("voices:update", id, patch),
+  removeVoice: (id: string) => call<boolean>("voices:remove", id),
+  writeTake: (wav: ArrayBuffer) => call<string>("voices:writeTake", wav),
+  micAccess: () => call<boolean>("voices:micAccess"),
 
   imageModels: () => call<ImageModels>("image:models"),
   generateImage: (opts: {
