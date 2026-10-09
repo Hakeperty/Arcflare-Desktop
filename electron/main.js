@@ -38,10 +38,33 @@ const granted = new Set();
 function grant(p) { if (p) granted.add(path.resolve(p)); return p; }
 
 function allowed(p) {
+  if (typeof p !== "string" || !p) return false;
   const abs = path.resolve(p);
   if (granted.has(abs)) return true;
+  // Compare real paths, so a symlink in the studio folder can't point outside it.
+  let real;
+  try { real = fs.realpathSync(abs); } catch { return false; }
   const roots = [eng.studioDir(), path.join(serve.HOME, "gen", "out")];
-  return roots.some((r) => abs === r || abs.startsWith(path.resolve(r) + path.sep));
+  return roots.some((r) => {
+    let rr;
+    try { rr = fs.realpathSync(r); } catch { return false; }
+    return real === rr || real.startsWith(rr + path.sep);
+  });
+}
+
+/** An input path from the renderer must be one the app may already read. */
+function requireAllowed(p, what) {
+  if (p == null || p === "") return;
+  if (!allowed(p)) throw new Error(`choose the ${what} again (the app can only use files you picked or it made)`);
+}
+
+/** Only web links leave the app, so a page can't open file:, smb: or app-handler URLs. */
+function openWeb(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return false; }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+  shell.openExternal(u.toString());
+  return true;
 }
 
 function fileFromUrl(u) {
@@ -85,13 +108,20 @@ function createWindow() {
     if (level === "error" || level === "warning" || level === 3 || level === 2) console.error(`[page] ${message} (${sourceId}:${lineNumber})`);
   });
   // Links open in the browser, never inside the app.
-  win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
+  win.webContents.setWindowOpenHandler(({ url }) => { openWeb(url); return { action: "deny" }; });
+  // The app is one page: any navigation away from it is a link for the browser.
+  const home = DEV_URL ? new URL(DEV_URL).origin : pathToFileURL(path.join(__dirname, "..", "dist", "index.html")).toString();
   win.webContents.on("will-navigate", (e, url) => {
-    if (DEV_URL && url.startsWith(DEV_URL)) return;
-    if (!url.startsWith("file:")) { e.preventDefault(); shell.openExternal(url); }
+    if (DEV_URL ? sameOrigin(url, home) : url.split(/[?#]/)[0] === home) return;
+    e.preventDefault();
+    openWeb(url);
   });
   if (DEV_URL) win.loadURL(DEV_URL);
   else win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+}
+
+function sameOrigin(url, origin) {
+  try { return new URL(url).origin === origin; } catch { return false; }
 }
 
 function send(channel, payload) {
@@ -135,9 +165,19 @@ handle("settings:get", () => {
   };
 });
 handle("settings:set", (patch) => {
-  const allowedKeys = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython", "stopServerOnQuit", "desktopUpdates"];
+  const strings = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython"];
+  const flags = ["stopServerOnQuit", "desktopUpdates"];
   const c = serve.loadConfig();
-  for (const k of Object.keys(patch || {})) if (allowedKeys.includes(k)) c[k] = patch[k];
+  for (const [k, v] of Object.entries(patch || {})) {
+    if (strings.includes(k)) {
+      if (typeof v !== "string") throw new Error(`${k} must be text`);
+      if (k === "comfyUrl" && v && !/^https?:\/\/[^\s]+$/i.test(v)) throw new Error("the ComfyUI address must start with http:// or https://");
+      c[k] = v;
+    } else if (flags.includes(k)) {
+      if (typeof v !== "boolean") throw new Error(`${k} must be on or off`);
+      c[k] = v;
+    }
+  }
   serve.saveConfig(c);
   return true;
 });
@@ -187,18 +227,25 @@ handle("edit:plan", (req) => eng.planEdit(req));
 
 handle("gen:status", () => eng.genStatus());
 handle("gen:setup", (id, opts) => eng.genSetup(id, opts));
-handle("gen:3d", (opts) => {
-  if (opts.image) grant(opts.image);
-  return eng.generate3d(opts);
+// Inputs must already be readable (picked or made by the app); passing a path
+// here never grants it. Output always lands in the studio folder.
+handle("gen:3d", (opts = {}) => {
+  requireAllowed(opts.image, "image");
+  return eng.generate3d({ ...opts, out: undefined });
 });
-handle("gen:tts", (opts) => {
-  if (opts.ref) grant(opts.ref);
-  return eng.speak(opts);
+handle("gen:tts", (opts = {}) => {
+  requireAllowed(opts.ref, "reference audio");
+  return eng.speak({ ...opts, out: undefined });
 });
 
 handle("image:models", () => image.listImageModels(serve.loadConfig()));
-handle("image:generate", (opts) => {
+handle("image:generate", (opts = {}) => {
   const c = serve.loadConfig();
+  requireAllowed(opts.initImage, "starting image");
+  if (opts.backend === "comfy") requireAllowed(opts.workflow, "workflow");
+  else if (!image.listImageModels(c).models.some((m) => m.path === opts.model) && !allowed(opts.model)) {
+    throw new Error("pick an image model from the list");
+  }
   const out = eng.stamp("image", "png");
   const needGb = opts.lowVram ? 2 : 6;
   if (opts.backend === "comfy") {
@@ -243,7 +290,7 @@ handle("files:writeBytes", (name, bytes) => {
   fs.writeFileSync(out, Buffer.from(bytes));
   return grant(out);
 });
-handle("files:reveal", (p) => { if (allowed(p)) shell.showItemInFolder(p); return true; });
+handle("files:reveal", (p) => { if (allowed(p)) shell.showItemInFolder(path.resolve(p)); return true; });
 handle("files:openStudio", () => shell.openPath(eng.studioDir()));
 handle("files:list", (kind) => {
   const ext = { image: /\.(png|jpe?g|webp)$/i, mesh: /\.glb$/i, audio: /\.wav$/i }[kind] || /.*/;
@@ -259,8 +306,7 @@ handle("files:list", (kind) => {
     .slice(0, 200);
 });
 handle("open:external", (url) => {
-  if (!/^https?:\/\//.test(String(url))) throw new Error("only web links");
-  shell.openExternal(url);
+  if (!openWeb(url)) throw new Error("only web links");
   return true;
 });
 
