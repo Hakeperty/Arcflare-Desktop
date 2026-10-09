@@ -6,6 +6,7 @@ import { api, on, rc, uid, type ChatMessage, type LoadedModel, type LocalModel, 
 import { Markdown } from "../ui/md";
 import { Progress, fmtCtx, EmptyState } from "../ui/kit";
 import { progressText, type View } from "../App";
+import { Term } from "../ui/Term";
 
 type Turn = ChatMessage & { id: string; reasoning?: string; tokPerSec?: number | null; error?: string };
 type Convo = { id: string; title: string; system: string; turns: Turn[]; created: number };
@@ -150,7 +151,7 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
             ))}
           </select>
           {loaded && loaded.id === pick
-            ? <span className="chip ok"><span className="led on" /> loaded · {fmtCtx(loaded.ctx)} ctx</span>
+            ? <span className="chip ok"><span className="led on" /> loaded · {fmtCtx(loaded.ctx)} <Term k="context">ctx</Term></span>
             : <button className="btn primary sm" onClick={loadPicked} disabled={!pick || !!loadingNow}>{loadingNow ? "loading…" : "load"}</button>}
           {picked && picked.bestCtx && !(loaded && loaded.id === pick) && <span className="dim mono" style={{ fontSize: 11 }}>up to {fmtCtx(picked.bestCtx)} ctx fits</span>}
           <span className="grow" />
@@ -229,7 +230,7 @@ function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
       )}
       {t.content ? <Markdown text={t.content} /> : streaming && !t.reasoning ? <span className="led busy" /> : null}
       {t.error && <div className="err">{t.error}</div>}
-      {t.tokPerSec != null && <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>{t.tokPerSec} tok/s</div>}
+      {t.tokPerSec != null && <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>{t.tokPerSec} <Term k="toks">tok/s</Term></div>}
     </div>
   );
 }

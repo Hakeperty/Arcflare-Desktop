@@ -98,7 +98,7 @@ export function Meter({ need, of, label }: { need: number; of: number; label?: R
   );
 }
 
-export function Spec({ k, v }: { k: string; v: React.ReactNode }) {
+export function Spec({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
   return (
     <div className="spec">
       <dt>{k}</dt>

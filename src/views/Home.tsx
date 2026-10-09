@@ -4,8 +4,12 @@
 import type { Job, LoadedModel, SystemInfo } from "../lib/api";
 import { DotArt, Label, Meter, Panel, Spec, JobStatus } from "../ui/kit";
 import type { View } from "../App";
+import { Term } from "../ui/Term";
 
-export function Home({ info, loaded, go, jobs }: { info: SystemInfo | null; loaded: LoadedModel | null; go: (v: View) => void; jobs: Job[] }) {
+export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
+  info: SystemInfo | null; loaded: LoadedModel | null; go: (v: View) => void; jobs: Job[];
+  setupDone: boolean | null; openSetup: () => void;
+}) {
   const ready = !!info?.llamaServer;
   const actions: { title: string; body: string; view: View; tag: string }[] = [
     { title: "Chat", body: "Talk to a model running on your own GPU. Nothing is sent anywhere.", view: "chat", tag: "01" },
@@ -34,23 +38,31 @@ export function Home({ info, loaded, go, jobs }: { info: SystemInfo | null; load
         </div>
       </section>
 
-      {!ready && info && (
+      {setupDone === false && (
+        <div className="panel row" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)", padding: 14, marginBottom: 16, gap: 12 }}>
+          <span className="grow"><b>New here?</b> Four short steps get you from nothing to a model that answers.</span>
+          <button className="btn primary sm" onClick={openSetup}>finish setup</button>
+        </div>
+      )}
+
+      {!ready && info && setupDone !== false && (
         <div className="panel" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)", padding: 14, marginBottom: 16 }}>
           <b>One thing first:</b> ArcFlare needs llama.cpp to run language models. Download a build for your GPU from{" "}
           <a href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" rel="noreferrer">github.com/ggml-org/llama.cpp</a>, then
-          set its <code className="md-code">llama-server</code> path in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>.
+          set its <code className="md-code">llama-server</code> path in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>,
+          or <a href="#" onClick={(e) => { e.preventDefault(); openSetup(); }}>let setup walk you through it</a>.
         </div>
       )}
 
       <div className="grid2">
         <Panel title="this machine" right={<span className={`led ${info ? "on" : "busy"}`} />}>
           <dl className="col" style={{ gap: 6, margin: 0 }}>
-            <Spec k="gpu free" v={free != null ? `${free} GB${total ? ` of ${total}` : ""}` : "…"} />
+            <Spec k={<>gpu free (<Term k="vram">vram</Term>)</>} v={free != null ? `${free} GB${total ? ` of ${total}` : ""}` : "…"} />
             {total > 0 && free != null && (
               <Meter need={total - free} of={total} label={`${(total - free).toFixed(1)} GB in use`} />
             )}
             <Spec k="ram" v={info ? `${info.ramGb} GB` : "…"} />
-            <Spec k="llama.cpp" v={info?.llamaServer ? "found" : "not found"} />
+            <Spec k={<Term k="llamacpp">llama.cpp</Term>} v={info?.llamaServer ? "found" : "not found"} />
             <Spec k="python (3d/tts)" v={info?.python ? "ready" : "not set up"} />
             <Spec k="engine" v={info?.engineVersion ?? "…"} />
           </dl>

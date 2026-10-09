@@ -119,6 +119,7 @@ function handle(channel, fn) {
 }
 
 handle("sys:info", () => eng.systemInfo());
+require("./setup")(handle); // first-run wizard: setup:state/find/folder/done
 
 handle("settings:get", () => {
   const c = serve.loadConfig();
@@ -135,7 +136,7 @@ handle("settings:get", () => {
   };
 });
 handle("settings:set", (patch) => {
-  const allowedKeys = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython", "stopServerOnQuit", "desktopUpdates"];
+  const allowedKeys = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython", "stopServerOnQuit", "desktopUpdates", "setupDone"];
   const c = serve.loadConfig();
   for (const k of Object.keys(patch || {})) if (allowedKeys.includes(k)) c[k] = patch[k];
   serve.saveConfig(c);

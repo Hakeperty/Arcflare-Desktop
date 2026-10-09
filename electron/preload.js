@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 const CHANNELS = new Set([
   "sys:info", "settings:get", "settings:set",
+  "setup:state", "setup:find", "setup:folder", "setup:done",
   "models:list", "models:load", "models:unload",
   "chat:send", "chat:stop", "edit:plan",
   "rc:start", "rc:stop", "rc:status", "rc:say", "rc:clear",

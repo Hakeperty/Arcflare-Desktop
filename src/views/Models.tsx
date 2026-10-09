@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type HubModel, type LoadedModel, type LocalModel, type ModelProgress } from "../lib/api";
 import { EmptyState, JobStatus, Meter, Progress, ViewHead, fmtCtx, useJob } from "../ui/kit";
 import { progressText, type View } from "../App";
+import { Term } from "../ui/Term";
 
 export function Models({ loaded, progress, go, freeGb }: { loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void; freeGb?: number | null }) {
   const [tab, setTab] = useState<"local" | "hub">("local");
@@ -55,7 +56,7 @@ function Local({ loaded, progress, go, freeGb }: { loaded: LoadedModel | null; p
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="mono truncate" style={{ fontWeight: 600 }}>{m.id}</div>
                 <div className="dim mono" style={{ fontSize: 12 }}>
-                  {m.quant} · {m.sizeGb} GB · trained {fmtCtx(m.trainCtx)} ctx{m.moe ? ` · MoE ${m.moe}` : ""}{m.vision ? " · vision" : ""}
+                  <Term k="quant">{m.quant}</Term> · {m.sizeGb} GB · trained {fmtCtx(m.trainCtx)} <Term k="context">ctx</Term>{m.moe ? <> · <Term k="moe">MoE</Term> {m.moe}</> : ""}{m.vision ? " · vision" : ""}
                   {m.bestCtx ? ` · ${fmtCtx(m.bestCtx)} fits now` : ""}
                 </div>
               </div>

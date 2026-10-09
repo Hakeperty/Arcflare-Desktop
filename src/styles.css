@@ -278,3 +278,43 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 input[type="color"] { -webkit-appearance: none; appearance: none; border: 1px solid var(--border-strong); background: var(--bg); padding: 3px; height: 28px; cursor: pointer; }
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 input[type="color"]::-webkit-color-swatch { border: none; }
+
+/* ---------------------------------------------------- first-run wizard ---- */
+.welcome-back { z-index: 80; background: rgba(0, 0, 0, .7); }
+.welcome { display: grid; grid-template-columns: 220px 1fr; width: min(980px, 94vw); height: min(640px, 90vh); background: var(--bg); border: 1px solid var(--border-strong, var(--border)); }
+.welcome-rail { display: flex; flex-direction: column; padding: 18px; border-right: 1px solid var(--border); background: var(--surface); min-height: 0; }
+.welcome-art { width: 100%; height: 56px; margin-bottom: 12px; }
+.welcome-brand { font: 600 18px var(--mono); }
+.welcome-brand b { color: var(--accent); font-weight: 600; }
+.welcome-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.welcome-step { all: unset; box-sizing: border-box; width: 100%; display: flex; gap: 10px; align-items: center; padding: 8px 10px; font: 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); cursor: pointer; border: 1px solid transparent; }
+.welcome-step:hover { color: var(--fg); }
+.welcome-step .n { color: var(--muted-2); width: 18px; }
+.welcome-step.on { color: var(--fg); border-color: var(--border); background: var(--bg); box-shadow: inset 2px 0 0 var(--accent); }
+.welcome-step.on .n { color: var(--accent); }
+.welcome-step.done .n { color: var(--accent-2); }
+.welcome-main { position: relative; padding: 28px 32px 0; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+.welcome-skip { position: sticky; bottom: 0; margin: auto -32px 0; padding: 12px 20px; display: flex; justify-content: flex-end; background: linear-gradient(transparent, var(--bg) 40%); }
+.welcome-verdict { margin: 16px 0 20px; padding-left: 10px; border-left: 2px solid var(--accent); color: var(--fg); }
+.welcome-options { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+.welcome-file { font: 12px var(--mono); padding: 6px 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--accent); word-break: break-all; }
+.welcome-howto { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: var(--muted); }
+.welcome-msg { margin-top: 14px; font: 12px var(--mono); color: var(--accent-2); word-break: break-all; }
+.welcome-msg.err { color: var(--danger); }
+.welcome-pick { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); background: var(--surface); }
+.welcome-pick.best { border-color: var(--accent); }
+.welcome-hello { padding: 18px; border: 1px solid var(--border); background: var(--surface); min-height: 96px; }
+.welcome-hello-text { font-size: 17px; line-height: 1.5; }
+.linkbtn { all: unset; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn:focus-visible { outline: 1px solid var(--accent); }
+.ok-t { color: var(--accent-2); }
+.warn-t { color: var(--accent); }
+.caret { display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--accent); animation: caret-blink 1s steps(1) infinite; }
+@keyframes caret-blink { 50% { opacity: 0; } }
+
+/* ------------------------------------------------------ glossary terms ---- */
+.term { position: relative; border-bottom: 1px dotted var(--muted-2); cursor: help; }
+.term:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.term-tip { position: absolute; left: 0; top: calc(100% + 6px); z-index: 90; width: 260px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--accent); font: 12.5px/1.5 var(--sans, system-ui); color: var(--muted); text-transform: none; letter-spacing: normal; white-space: normal; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+.term-tip b { display: block; color: var(--fg); margin-bottom: 4px; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }

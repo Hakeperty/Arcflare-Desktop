@@ -6,7 +6,7 @@ import { api, updates, type Settings as S, type SystemInfo, type UpdateStatus } 
 import { updateText } from "../ui/Update";
 import { Field, Panel, ViewHead } from "../ui/kit";
 
-export function Settings({ info, update }: { info: SystemInfo | null; update: UpdateStatus | null }) {
+export function Settings({ info, update, openSetup }: { info: SystemInfo | null; update: UpdateStatus | null; openSetup: () => void }) {
   const [s, setS] = useState<S | null>(null);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
@@ -27,7 +27,7 @@ export function Settings({ info, update }: { info: SystemInfo | null; update: Up
   return (
     <div className="page">
      <div style={{ maxWidth: 820 }}>
-      <ViewHead index="08" label="settings" title="Settings">
+      <ViewHead index="08" label="settings" title="Settings" right={<button className="btn sm" onClick={openSetup}>run setup again</button>}>
         Shared with the <code className="md-code">arcflare</code> command line: change it in either place.
       </ViewHead>
 

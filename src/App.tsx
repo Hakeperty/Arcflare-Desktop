@@ -11,6 +11,8 @@ import { Settings } from "./views/Settings";
 import { Jobs } from "./views/Jobs";
 import { PhoneButton, PhonePanel, useRemote } from "./ui/Phone";
 import { UpdatePill, useUpdates } from "./ui/Update";
+import { Welcome } from "./ui/Welcome";
+import { setup } from "./lib/setup";
 
 export type View = "home" | "chat" | "agent" | "studio" | "models" | "harnesses" | "jobs" | "settings";
 
@@ -36,6 +38,13 @@ export function App() {
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneChat, setPhoneChat] = useState(0); // bump to show the Phone conversation
   const running = jobs.filter((j) => j.state === "running");
+  // First run: open the welcome wizard until it's finished (or forced in dev).
+  const [setupDone, setSetupDone] = useState<boolean | null>(null);
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    setup.state().then((st) => { setSetupDone(st.done); if (!st.done || st.forced) setWelcome(true); }).catch(() => setSetupDone(true));
+  }, []);
+  const refreshInfo = () => api.systemInfo().then((i) => { setInfo(i); setLoaded(i.loaded); }).catch(() => {});
 
   // System info now and every 15 s: free VRAM moves as models load and unload.
   useEffect(() => {
@@ -108,16 +117,21 @@ export function App() {
         </nav>
 
         <main className="main">
-          {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} />}
+          {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} setupDone={setupDone} openSetup={() => setWelcome(true)} />}
           {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />}
           {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
           {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}
           {view === "jobs" && <Jobs jobs={jobs} />}
-          {view === "settings" && <Settings info={info} update={update} />}
+          {view === "settings" && <Settings info={info} update={update} openSetup={() => setWelcome(true)} />}
         </main>
       </div>
+
+      {welcome && (
+        <Welcome info={info} onRefresh={refreshInfo} go={setView}
+          onClose={(finished) => { setWelcome(false); if (finished) setSetupDone(true); refreshInfo(); }} />
+      )}
 
       {phoneOpen && (
         <PhonePanel status={remote} onClose={() => setPhoneOpen(false)}
