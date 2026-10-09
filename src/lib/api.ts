@@ -96,9 +96,16 @@ export type GenModel = {
   license: string | null;
   /** Cloning needs the reference clip's transcript too (qwen3-tts-clone). */
   needsRefText: boolean;
+  /** Runs on onnxruntime: setup installs no torch, and it never uses the GPU. */
+  noTorch: boolean;
 };
 
 /** A voice saved in the voice studio (or with `arcflare gen voices add`). */
+/** "~4 GB", or "CPU" for a model that never touches the GPU. */
+export function vramText(m: { vram: number }): string {
+  return m.vram ? `~${m.vram} GB` : "CPU";
+}
+
 export type SavedVoice = {
   id: string; name: string; text: string; lang: string | null; clip: string;
   seconds: number | null; created: string; advice: string | null;

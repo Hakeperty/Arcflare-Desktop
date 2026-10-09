@@ -3,7 +3,7 @@
 // so `arcflare gen tts --clone <name>` and the speech tab use the same ones.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fileUrl, on, type GenModel, type Job, type SavedVoice } from "../../lib/api";
+import { api, fileUrl, on, vramText, type GenModel, type Job, type SavedVoice } from "../../lib/api";
 import { clipAdvice, decodeToMono, encodeWav, normalize, trimSilence, TAKE_RATE } from "../../lib/wav";
 import { EmptyState, Field, JobStatus, Panel, useJob } from "../../ui/kit";
 
@@ -364,7 +364,7 @@ function VoiceDetail({ voice, models, onChanged, onUse }: {
           <div className="grid2">
             <Field label="model">
               <select className="select" value={modelId} onChange={(e) => setModelId(e.target.value)}>
-                {usable.map((x) => <option key={x.id} value={x.id}>{x.label} · ~{x.vram} GB{x.installed ? "" : " · not installed"}</option>)}
+                {usable.map((x) => <option key={x.id} value={x.id}>{x.label} · {vramText(x)}{x.installed ? "" : " · not installed"}</option>)}
               </select>
             </Field>
             {m?.emotions ? (

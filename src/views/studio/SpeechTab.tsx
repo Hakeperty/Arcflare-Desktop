@@ -2,7 +2,7 @@
 // clip picked here, or one saved in the voice lab.
 
 import { useEffect, useMemo, useState } from "react";
-import { api, fileUrl, type GenModel, type SavedVoice, type StudioFile } from "../../lib/api";
+import { api, fileUrl, vramText, type GenModel, type SavedVoice, type StudioFile } from "../../lib/api";
 import { Field, JobStatus, Panel, useJob } from "../../ui/kit";
 
 const LANGS = ["", "en", "zh", "ja", "ko", "de", "fr", "es", "it", "pt", "ru", "hi", "ar"];
@@ -70,16 +70,20 @@ export function SpeechTab({ useVoice }: { useVoice?: { id: string; at: number } 
       <div style={{ overflowY: "auto", padding: 18 }} className="col">
         <Field label="model">
           <select className="select" value={modelId} onChange={(e) => setModelId(e.target.value)}>
-            {models.map((x) => <option key={x.id} value={x.id}>{x.label} · {x.params} · ~{x.vram} GB{x.installed ? "" : " · not installed"}</option>)}
+            {models.map((x) => <option key={x.id} value={x.id}>{x.label} · {x.params} · {vramText(x)}{x.installed ? "" : " · not installed"}</option>)}
           </select>
         </Field>
         {m && <div className="dim" style={{ fontSize: 13 }}>{m.note}</div>}
         {m && !m.installed && (
           <div className="panel" style={{ padding: 12, borderColor: "var(--accent)" }}>
-            <div style={{ marginBottom: 8 }}>{m.label} isn't set up yet. Setup makes it its own Python environment and installs its packages (a few GB).</div>
+            <div style={{ marginBottom: 8 }}>{m.label} isn't set up yet. Setup makes it its own Python environment and installs its packages ({m.noTorch ? "small: no torch, CPU only" : "a few GB"}).</div>
             <div className="row">
-              <button className="btn primary sm" onClick={async () => { const j = await api.genSetup(m.id, { torch: "cuda" }); setSetupId(j.id); }}>set up (NVIDIA)</button>
-              <button className="btn sm" onClick={async () => { const j = await api.genSetup(m.id, { torch: "cpu" }); setSetupId(j.id); }}>set up (CPU / Mac)</button>
+              {m.noTorch
+                ? <button className="btn primary sm" onClick={async () => { const j = await api.genSetup(m.id); setSetupId(j.id); }}>set up</button>
+                : <>
+                  <button className="btn primary sm" onClick={async () => { const j = await api.genSetup(m.id, { torch: "cuda" }); setSetupId(j.id); }}>set up (NVIDIA)</button>
+                  <button className="btn sm" onClick={async () => { const j = await api.genSetup(m.id, { torch: "cpu" }); setSetupId(j.id); }}>set up (CPU / Mac)</button>
+                </>}
             </div>
             {setupJob && <div style={{ marginTop: 10 }}><JobStatus job={setupJob} /><div className="log" style={{ marginTop: 6 }}>{setupJob.log.slice(-8).join("\n")}</div></div>}
           </div>
