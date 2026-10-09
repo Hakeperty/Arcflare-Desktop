@@ -153,6 +153,8 @@ export const api = {
   stopChat: (requestId: string) => call<void>("chat:stop", requestId),
   planEdit: (req: { instruction: string; selection: unknown; ops: string[] }) => call<unknown[] | null>("edit:plan", req),
 
+  /** Download llama.cpp for this machine; a job like any setup. */
+  getEngine: () => call<Job>("engine:get"),
   genStatus: () => call<GenModel[]>("gen:status"),
   genSetup: (id: string, opts?: { torch?: string; torchFrom?: string; texture?: boolean }) => call<Job>("gen:setup", id, opts ?? {}),
   gen3d: (opts: { model: string; image?: string; prompt?: string; steps?: number; octree?: number; faces?: number; seed?: number; texture?: boolean }) =>

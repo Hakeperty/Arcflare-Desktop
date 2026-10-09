@@ -10,6 +10,10 @@ const os = require("os");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
+// Before anything spawns a process: give a Finder-launched Mac app the PATH
+// Terminal has (Homebrew's python, git, llama-server). See shellpath.js.
+require("./shellpath")();
+
 const eng = require("./engine");
 const image = require("./image");
 const remote = require("./remote")(eng);
@@ -185,6 +189,7 @@ handle("agent:clear", (id) => agents.clear(id));
 handle("agent:close", (id) => agents.close(id));
 handle("edit:plan", (req) => eng.planEdit(req));
 
+handle("engine:get", () => eng.getEngine());
 handle("gen:status", () => eng.genStatus());
 handle("gen:setup", (id, opts) => eng.genSetup(id, opts));
 handle("gen:3d", (opts) => {

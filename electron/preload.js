@@ -10,6 +10,7 @@ const CHANNELS = new Set([
   "rc:start", "rc:stop", "rc:status", "rc:say", "rc:clear",
   "agent:open", "agent:recent", "agent:state", "agent:list", "agent:send", "agent:stop", "agent:answer", "agent:auto", "agent:clear", "agent:close",
   "update:status", "update:check", "update:install",
+  "engine:get",
   "gen:status", "gen:setup", "gen:3d", "gen:tts",
   "voices:list", "voices:save", "voices:update", "voices:remove", "voices:writeTake", "voices:micAccess",
   "image:models", "image:generate", "comfy:status",

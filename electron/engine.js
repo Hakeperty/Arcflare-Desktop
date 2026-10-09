@@ -291,10 +291,24 @@ function cliJob(kind, title, args, meta) {
   };
   child.stdout.on("data", onData);
   child.stderr.on("data", onData);
+  // On failure, say why: the CLI's last line is the reason ("llama-server not
+  // found", a pip error), where the exit code alone tells nobody anything.
   child.on("close", (code) => update(job, code === 0
     ? { state: "done", progress: 100, stage: "done" }
-    : { state: "failed", error: `exited with code ${code}` }));
+    : { state: "failed", error: lastReason(job) || `exited with code ${code}` }));
   return publicJob(job);
+}
+
+/** The most useful line of a failed CLI job's output: the last one that isn't progress. */
+function lastReason(job) {
+  const lines = (job.log || []).map((l) => l.replace(/^\s*[x✗×!]\s*/, "").trim())
+    .filter((l) => l && !/^\d{1,3}(\.\d+)?%$/.test(l));
+  return lines.length ? lines[lines.length - 1] : null;
+}
+
+/** Download llama.cpp for this machine (`arcflare get-engine`). */
+function getEngine() {
+  return cliJob("setup", "Get llama.cpp", ["get-engine"]);
 }
 
 // --------------------------------------------------------------- studio vram --
@@ -456,7 +470,7 @@ function shutdown({ stopServer = true } = {}) {
 
 module.exports = {
   bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
-  generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
+  generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall, getEngine,
   harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };

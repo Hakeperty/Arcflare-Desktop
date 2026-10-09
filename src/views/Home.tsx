@@ -1,12 +1,16 @@
 // The first screen: what this machine has, what is loaded, what is running,
 // and one click to each thing people come here to do.
 
-import type { Job, LoadedModel, SystemInfo } from "../lib/api";
-import { DotArt, Label, Meter, Panel, Spec, JobStatus } from "../ui/kit";
+import { useState } from "react";
+import { api, type Job, type LoadedModel, type SystemInfo } from "../lib/api";
+import { DotArt, Label, Meter, Panel, Spec, JobStatus, useJob } from "../ui/kit";
 import type { View } from "../App";
 
 export function Home({ info, loaded, go, jobs }: { info: SystemInfo | null; loaded: LoadedModel | null; go: (v: View) => void; jobs: Job[] }) {
   const ready = !!info?.llamaServer;
+  const [engineJob, setEngineJob] = useState<string | null>(null);
+  const [engineErr, setEngineErr] = useState("");
+  const getting = useJob(engineJob);
   const actions: { title: string; body: string; view: View; tag: string }[] = [
     { title: "Chat", body: "Talk to a model running on your own GPU. Nothing is sent anywhere.", view: "chat", tag: "01" },
     { title: "Agent", body: "Open a folder and ask. It reads, edits and runs commands there, asking before anything risky.", view: "agent", tag: "02" },
@@ -36,9 +40,21 @@ export function Home({ info, loaded, go, jobs }: { info: SystemInfo | null; load
 
       {!ready && info && (
         <div className="panel" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)", padding: 14, marginBottom: 16 }}>
-          <b>One thing first:</b> ArcFlare needs llama.cpp to run language models. Download a build for your GPU from{" "}
-          <a href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" rel="noreferrer">github.com/ggml-org/llama.cpp</a>, then
-          set its <code className="md-code">llama-server</code> path in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>.
+          <b>One thing first:</b> ArcFlare needs llama.cpp to run and download language models.
+          <div className="row" style={{ marginTop: 10, gap: 8 }}>
+            <button className="btn primary sm" disabled={getting?.state === "running"} onClick={async () => {
+              setEngineErr("");
+              try { setEngineJob((await api.getEngine()).id); } catch (e) { setEngineErr((e as Error).message); }
+            }}>{getting?.state === "running" ? "downloading…" : "download llama.cpp"}</button>
+            <span className="dim" style={{ fontSize: 12 }}>
+              the official build for this machine, from{" "}
+              <a href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" rel="noreferrer">github.com/ggml-org/llama.cpp</a>.
+              Have your own (CUDA, ROCm)? Set it in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>.
+            </span>
+          </div>
+          {getting && <div style={{ marginTop: 10 }}><JobStatus job={getting} /></div>}
+          {getting?.state === "done" && <div className="dim" style={{ fontSize: 12, marginTop: 6 }}>installed — this note goes away in a moment</div>}
+          {engineErr && <div className="err" style={{ marginTop: 8 }}>{engineErr}</div>}
         </div>
       )}
 

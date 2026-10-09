@@ -96,6 +96,12 @@ On Linux and macOS:
 curl -fsSL https://arcflare.net/install-desktop.sh | sh
 ```
 
+or the same script straight from this repo:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Hakeperty/Arcflare-Desktop/main/install.sh | sh
+```
+
 It downloads the latest release for your system, checks it against the
 release's `SHA256SUMS`, and installs it:
 
@@ -105,6 +111,13 @@ release's `SHA256SUMS`, and installs it:
 | Debian, Ubuntu (apt) | the `.deb`, with `sudo apt install` |
 | any other Linux | the AppImage in `~/.local/share/arcflare-desktop`, a menu entry and `~/.local/bin/arcflare-desktop`; no root needed |
 | macOS | `ArcFlare.app` in `/Applications` (or `~/Applications`) |
+
+Then it gets **llama.cpp**, which the app needs to download and run language
+models: `brew install llama.cpp` on a Mac with Homebrew, otherwise the official
+prebuilt release from github.com/ggml-org/llama.cpp (checked against its
+published sha256) into `~/llamacpp`, where the app looks. `ARCFLARE_LLAMA=0`
+skips it. Without llama.cpp, every model download in the app would fail; if it
+is still missing, Home has a **download llama.cpp** button that does the same.
 
 Pick a format with `ARCFLARE_DESKTOP=appimage` (or `deb`, `pacman`):
 `curl -fsSL https://arcflare.net/install-desktop.sh | ARCFLARE_DESKTOP=appimage sh`.
