@@ -8,16 +8,16 @@
   "author": "ArcFlare",
   "license": "MIT",
   "scripts": {
-    "dev": "concurrently -k -n vite,app \"vite\" \"wait-on tcp:5199 && cross-env ARCFLARE_DEV_URL=http://localhost:5199 electron .\"",
-    "build": "vite build",
-    "start": "vite build && electron .",
-    "dist": "vite build && electron-builder",
-    "dist:win": "vite build && electron-builder --win",
-    "dist:mac": "vite build && electron-builder --mac",
-    "dist:linux": "vite build && electron-builder --linux",
+    "dev": "node scripts/build-runtime.mjs && concurrently -k -n vite,app \"vite\" \"wait-on tcp:5199 && cross-env ARCFLARE_DEV_URL=http://localhost:5199 electron .\"",
+    "build": "vite build && node scripts/build-runtime.mjs",
+    "start": "vite build && node scripts/build-runtime.mjs && electron .",
+    "dist": "vite build && node scripts/build-runtime.mjs && electron-builder",
+    "dist:win": "vite build && node scripts/build-runtime.mjs && electron-builder --win",
+    "dist:mac": "vite build && node scripts/build-runtime.mjs && electron-builder --mac",
+    "dist:linux": "vite build && node scripts/build-runtime.mjs && electron-builder --linux",
     "typecheck": "tsc --noEmit",
     "test": "node test/run.mjs",
-    "test:smoke": "vite build && node test/smoke.mjs"
+    "test:smoke": "vite build && node scripts/build-runtime.mjs && node test/smoke.mjs"
   },
   "dependencies": {
     "arcflare": "file:../ArcFlare-Code",
@@ -34,6 +34,7 @@
     "electron-builder": "^25.1.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sucrase": "^3.35.1",
     "three": "^0.170.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.0",

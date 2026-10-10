@@ -1,9 +1,11 @@
 // Chat with the model on your GPU. Conversations are kept in this window's
 // storage; the model, the prompt and the replies never leave the machine.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, on, rc, uid, type ChatMessage, type LoadedModel, type LocalModel, type ModelProgress, type RcStatus, type RcTurnEvent } from "../lib/api";
-import { Markdown } from "../ui/md";
+import { Markdown, PreviewCode } from "../ui/md";
+import { ArtifactCard, ArtifactPanel, type PanelOpen } from "../ui/Artifacts";
+import { ARTIFACT_PROMPT, DESIGN_PROMPT, DESIGN_STARTERS, collectArtifacts, kindOf, splitArtifacts, versionIn, type ArtifactThread } from "../lib/artifacts";
 import { Progress, fmtCtx, EmptyState } from "../ui/kit";
 import { progressText, type View } from "../App";
 import { Term } from "../ui/Term";
@@ -20,6 +22,16 @@ function loadConvos(): Convo[] {
 function saveConvos(c: Convo[]) {
   try { localStorage.setItem(STORE, JSON.stringify(c.slice(0, 100))); } catch { /* storage full or blocked */ }
 }
+const MODES = "arcflare.chat.modes";
+function loadModes(): { artifacts: boolean; design: boolean } {
+  try { const v = JSON.parse(localStorage.getItem(MODES) || "{}"); return { artifacts: v.artifacts !== false, design: !!v.design }; } catch { return { artifacts: true, design: false }; }
+}
+const PANEL_W = "arcflare.artifacts.width";
+function loadWidth(): number { try { return Number(localStorage.getItem(PANEL_W)) || 0; } catch { return 0; } }
+
+/** What the open artifact panel needs from whichever conversation it sits beside. */
+type ArtifactCtx = { threads: ArtifactThread[]; open: PanelOpen | null; onOpen: (id: string, v: number) => void };
+
 const newConvo = (): Convo => ({ id: uid(), title: "New chat", system: DEFAULT_SYSTEM, turns: [], created: Date.now() });
 
 export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
@@ -38,9 +50,65 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
   const [showSystem, setShowSystem] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const [modes, setModes] = useState(loadModes);
+  useEffect(() => { try { localStorage.setItem(MODES, JSON.stringify(modes)); } catch { /* blocked */ } }, [modes]);
+  const [panel, setPanel] = useState<PanelOpen | null>(null);
+  const [adhoc, setAdhoc] = useState<ArtifactThread[]>([]);
+  const [panelW, setPanelW] = useState(loadWidth);
+  const [dragging, setDragging] = useState(false);
+  const row = useRef<HTMLDivElement>(null);
 
   const convo = convos.find((c) => c.id === activeId) || convos[0];
   useEffect(() => saveConvos(convos), [convos]);
+
+  // Artifacts in whichever conversation is showing, plus code blocks opened with "preview".
+  const phoneTurns = useMemo(() => (remote?.history ?? []).map((h, i) => ({ id: String(i), role: h.role, content: h.content })), [remote?.history]);
+  const threads = useMemo(() => [...adhoc, ...collectArtifacts(phoneMode ? phoneTurns : convo.turns)], [adhoc, phoneMode, phoneTurns, convo.turns]);
+  useEffect(() => { setPanel(null); setAdhoc([]); }, [activeId, phoneMode]);
+  const openArtifact = useCallback((id: string, v: number) => {
+    const th = threads.find((t) => t.id === id);
+    setPanel({ id, v: th && v >= th.versions.length ? null : v });
+  }, [threads]);
+  const previewCode = useCallback((lang: string, code: string) => {
+    const kind = kindOf(lang);
+    const id = `preview-${uid()}`;
+    const th: ArtifactThread = { id, title: `${lang} preview`, kind, versions: [{ id, kind, title: `${lang} preview`, lang, content: code, closed: true, turnId: "" }] };
+    setAdhoc((xs) => [th, ...xs].slice(0, 10));
+    setPanel({ id, v: null });
+  }, []);
+  const artifactCtx: ArtifactCtx = { threads, open: panel, onOpen: openArtifact };
+
+  // A reply that starts writing an artifact opens it in the panel, once.
+  const autoOpened = useRef("");
+  useEffect(() => {
+    if (!busy || phoneMode) return;
+    const last = convo.turns[convo.turns.length - 1];
+    if (!last || last.role !== "assistant") return;
+    const segs = splitArtifacts(last.content);
+    const art = [...segs].reverse().find((x) => x.type === "artifact");
+    if (art && art.type === "artifact" && autoOpened.current !== `${busy}:${art.artifact.id}`) {
+      autoOpened.current = `${busy}:${art.artifact.id}`;
+      setPanel({ id: art.artifact.id, v: null });
+    }
+  }, [convo.turns, busy, phoneMode]);
+
+  function startDrag(e: React.MouseEvent) {
+    e.preventDefault();
+    setDragging(true);
+    const move = (ev: MouseEvent) => {
+      const box = row.current?.getBoundingClientRect();
+      if (!box) return;
+      setPanelW(Math.round(Math.min(Math.max(box.right - ev.clientX, 320), box.width - 380)));
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      setPanelW((w) => { try { localStorage.setItem(PANEL_W, String(w)); } catch { /* blocked */ } return w; });
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
   useEffect(() => { api.models().then((m) => { setModels(m); if (!pick && m[0]) setPick(m[0].id); }).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (loaded) setPick(loaded.id); }, [loaded]);
 
@@ -78,8 +146,10 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
     streaming.current = { requestId, convoId: convo.id, turnId: reply.id };
     stick.current = true;
     setBusy(requestId);
+    // Artifacts and design mode add their instructions to the system prompt for this request only.
+    const system = [convo.system.trim(), modes.artifacts || modes.design ? ARTIFACT_PROMPT : "", modes.design ? DESIGN_PROMPT : ""].filter(Boolean).join("\n\n");
     const messages: ChatMessage[] = [
-      ...(convo.system.trim() ? [{ role: "system" as const, content: convo.system }] : []),
+      ...(system ? [{ role: "system" as const, content: system }] : []),
       ...[...base, user].map(({ role, content }) => ({ role, content })),
     ];
     try {
@@ -112,7 +182,8 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
   const picked = useMemo(() => models.find((m) => m.id === pick), [models, pick]);
 
   return (
-    <div className="page flush" style={{ flexDirection: "row" }}>
+    <PreviewCode.Provider value={previewCode}>
+    <div ref={row} className={`page flush${dragging ? " dragging" : ""}`} style={{ flexDirection: "row" }}>
       {/* conversations */}
       <aside style={{ width: 230, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
         <div style={{ padding: 10 }}>
@@ -139,12 +210,12 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
         </div>
       </aside>
 
-      {phoneMode && <PhoneConversation remote={remote} loaded={loaded} openPhone={openPhone} />}
+      {phoneMode && <PhoneConversation remote={remote} loaded={loaded} openPhone={openPhone} artifacts={artifactCtx} />}
 
       {/* conversation */}
       <section style={{ flex: 1, minWidth: 0, display: phoneMode ? "none" : "flex", flexDirection: "column" }}>
-        <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", gap: 8 }}>
-          <select className="select" style={{ maxWidth: 360 }} value={pick} onChange={(e) => setPick(e.target.value)} disabled={!!loadingNow}>
+        <div className="row wrap" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", gap: 8 }}>
+          <select className="select" style={{ maxWidth: 360, flex: "1 1 160px" }} value={pick} onChange={(e) => setPick(e.target.value)} disabled={!!loadingNow}>
             {models.length === 0 && <option value="">no models found</option>}
             {models.map((m) => (
               <option key={m.id} value={m.id}>{m.id} · {m.sizeGb} GB{m.fits === false ? " · too big" : ""}</option>
@@ -155,6 +226,11 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
             : <button className="btn primary sm" onClick={loadPicked} disabled={!pick || !!loadingNow}>{loadingNow ? "loading…" : "load"}</button>}
           {picked && picked.bestCtx && !(loaded && loaded.id === pick) && <span className="dim mono" style={{ fontSize: 11 }}>up to {fmtCtx(picked.bestCtx)} ctx fits</span>}
           <span className="grow" />
+          <button className={`btn sm${modes.artifacts || modes.design ? " on" : ""}`} onClick={() => setModes((m) => ({ artifacts: !(m.artifacts || m.design), design: false }))}
+            title="Let the model make pages, SVGs, React components and documents that open in a panel beside the chat">artifacts</button>
+          <button className={`btn sm${modes.design ? " on" : ""}`} onClick={() => setModes((m) => ({ artifacts: true, design: !m.design }))}
+            title="Design mode: the model answers with polished, responsive pages and components, and you can point at a part of the preview to change it">design</button>
+          {threads.length > 0 && !panel && <button className="btn sm" onClick={() => setPanel({ id: threads[0].id, v: null })}>panel · {threads.length}</button>}
           <button className={`btn sm${showSystem ? " on" : ""}`} onClick={() => setShowSystem((v) => !v)}>system prompt</button>
           {models.length === 0 && <button className="btn sm" onClick={() => go("models")}>get a model</button>}
         </div>
@@ -176,9 +252,14 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 24px" }} className="col">
             {convo.turns.length === 0 && (
               loaded
-                ? <EmptyState seed={`chat-${loaded.id}`} title={`Ask ${loaded.name} anything`}>
-                    It runs on this computer. Nothing you type is sent anywhere.
-                  </EmptyState>
+                ? modes.design
+                  ? <EmptyState seed={`design-${loaded.id}`} title="Design with your local model"
+                      action={<div className="starters">{DESIGN_STARTERS.map((d) => <button key={d} onClick={() => send(d)}>{d}</button>)}</div>}>
+                      Describe a page, screen or component. It opens as a live preview beside the chat; press <b>point &amp; ask</b> and click any part of it to change just that.
+                    </EmptyState>
+                  : <EmptyState seed={`chat-${loaded.id}`} title={`Ask ${loaded.name} anything`}>
+                      It runs on this computer. Nothing you type is sent anywhere.
+                    </EmptyState>
                 : models.length
                   ? <EmptyState seed="chat-load" title="Pick a model and press load">
                       ArcFlare sizes its context to the VRAM you have free, then you can chat.
@@ -188,14 +269,14 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
                       Download one that fits your GPU from the hub.
                     </EmptyState>
             )}
-            {convo.turns.map((t) => <TurnView key={t.id} t={t} streaming={busy !== null && t === convo.turns[convo.turns.length - 1]} />)}
+            {convo.turns.map((t) => <TurnView key={t.id} t={t} streaming={busy !== null && t === convo.turns[convo.turns.length - 1]} artifacts={artifactCtx} />)}
           </div>
         </div>
 
         <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
           <div style={{ maxWidth: 820, margin: "0 auto" }} className="row">
             <textarea className="textarea grow" rows={Math.min(8, Math.max(2, input.split("\n").length))} value={input}
-              placeholder={loaded ? "Message — Enter to send, Shift+Enter for a new line" : "Load a model to start"}
+              placeholder={loaded ? (modes.design ? "Describe what to design — Enter to send" : "Message — Enter to send, Shift+Enter for a new line") : "Load a model to start"}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input); } }} />
             <div className="col" style={{ gap: 6 }}>
@@ -207,11 +288,22 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
           </div>
         </div>
       </section>
+
+      {panel && threads.length > 0 && (
+        <>
+          <div className={`art-resize${dragging ? " on" : ""}`} onMouseDown={startDrag} title="Drag to resize" />
+          <ArtifactPanel threads={threads} open={panel} setOpen={setPanel} onClose={() => setPanel(null)}
+            style={{ width: panelW || "48%", maxWidth: "calc(100% - 610px)" }}
+            busy={phoneMode ? !!remote?.busy : !!busy || !loaded}
+            onAsk={phoneMode ? (text) => { rc.say(text).catch(() => {}); } : (text) => send(text)} />
+        </>
+      )}
     </div>
+    </PreviewCode.Provider>
   );
 }
 
-function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
+function TurnView({ t, streaming, artifacts }: { t: Turn; streaming: boolean; artifacts?: ArtifactCtx }) {
   const [open, setOpen] = useState(false);
   if (t.role === "user") {
     return (
@@ -228,10 +320,27 @@ function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
           {open && <div className="log" style={{ maxHeight: 260, marginTop: 4 }}>{t.reasoning}</div>}
         </div>
       )}
-      {t.content ? <Markdown text={t.content} /> : streaming && !t.reasoning ? <span className="led busy" /> : null}
+      {t.content ? <Reply t={t} artifacts={artifacts} /> : streaming && !t.reasoning ? <span className="led busy" /> : null}
       {t.error && <div className="err">{t.error}</div>}
       {t.tokPerSec != null && <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>{t.tokPerSec} <Term k="toks">tok/s</Term></div>}
     </div>
+  );
+}
+
+/** A reply's prose, with a card wherever it wrote an artifact. */
+function Reply({ t, artifacts }: { t: Turn; artifacts?: ArtifactCtx }) {
+  const segs = useMemo(() => splitArtifacts(t.content), [t.content]);
+  if (!artifacts || !segs.some((s) => s.type === "artifact")) return <Markdown text={t.content} />;
+  return (
+    <>
+      {segs.map((s, i) => {
+        if (s.type === "text") return s.text.trim() ? <Markdown key={i} text={s.text} /> : <Fragment key={i} />;
+        const v = versionIn(artifacts.threads, s.artifact.id, t.id);
+        const th = artifacts.threads.find((x) => x.id === s.artifact.id);
+        const active = artifacts.open?.id === s.artifact.id && (artifacts.open.v ?? th?.versions.length) === v;
+        return <ArtifactCard key={i} a={s.artifact} version={v} active={active} onOpen={() => artifacts.onOpen(s.artifact.id, v)} />;
+      })}
+    </>
   );
 }
 
@@ -240,7 +349,7 @@ function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
  * with this screen closed); this shows it, streams replies, and lets you type
  * into it from here too.
  */
-function PhoneConversation({ remote, loaded, openPhone }: { remote: RcStatus | null; loaded: LoadedModel | null; openPhone: () => void }) {
+function PhoneConversation({ remote, loaded, openPhone, artifacts }: { remote: RcStatus | null; loaded: LoadedModel | null; openPhone: () => void; artifacts: ArtifactCtx }) {
   const [input, setInput] = useState("");
   const [live, setLive] = useState<{ requestId: string; reasoning: string; content: string } | null>(null);
   const [err, setErr] = useState("");
@@ -296,7 +405,7 @@ function PhoneConversation({ remote, loaded, openPhone }: { remote: RcStatus | n
           {turns.map((t) => (
             <div key={t.id} className="col" style={{ gap: 0, alignItems: t.role === "user" ? "flex-end" : "stretch" }}>
               {t.role === "user" && (t as Turn & { from?: string }).from === "phone" && <div className="from-phone">from phone</div>}
-              <TurnView t={t} streaming={false} />
+              <TurnView t={t} streaming={false} artifacts={artifacts} />
             </div>
           ))}
           {live && <TurnView t={{ id: "live", role: "assistant", content: live.content, reasoning: live.reasoning || undefined }} streaming />}

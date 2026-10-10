@@ -3,7 +3,14 @@
 // Rendered as React elements — never as HTML — so a model's output can't
 // inject markup into the app.
 
-import { Fragment, useState } from "react";
+import { Fragment, createContext, useContext, useState } from "react";
+
+/**
+ * Set by the chat: opens a fenced block of HTML, SVG or JSX in the artifact
+ * panel, for replies that wrote one without the artifact tags.
+ */
+export const PreviewCode = createContext<((lang: string, code: string) => void) | null>(null);
+const PREVIEW_LANGS = /^(html|svg|xml|jsx|tsx|react)$/i;
 
 const INLINE = /(`[^`]+`|\*\*(?=\S)[^*]+\*\*|\*(?=\S)[^*]+\*)/g;
 
@@ -18,10 +25,13 @@ function inline(text: string) {
 
 function CodeBlock({ lang, code }: { lang: string; code: string }) {
   const [copied, setCopied] = useState(false);
+  const preview = useContext(PreviewCode);
+  const canPreview = preview && PREVIEW_LANGS.test(lang) && (lang.toLowerCase() !== "xml" || /<svg[\s>]/i.test(code)) && code.split("\n").length >= 4;
   return (
     <div className="md-pre">
       <div className="md-pre-h">
-        <span>{lang || "code"}</span>
+        <span className="grow">{lang || "code"}</span>
+        {canPreview && <button className="btn ghost sm" onClick={() => preview(lang, code)}>preview</button>}
         <button className="btn ghost sm" onClick={() => {
           navigator.clipboard.writeText(code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }).catch(() => {});
         }}>{copied ? "copied" : "copy"}</button>

@@ -58,7 +58,7 @@ jobs:
         env:
           # Unsigned for now: no certificates in CI.
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx vite build && npx electron-builder ${{ matrix.target }} --publish never
+        run: npx vite build && node scripts/build-runtime.mjs && npx electron-builder ${{ matrix.target }} --publish never
 
       - uses: actions/upload-artifact@v4
         with:

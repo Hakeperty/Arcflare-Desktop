@@ -16,7 +16,8 @@ const CHANNELS = new Set([
   "jobs:list", "jobs:cancel",
   "hub:catalogue", "hub:install",
   "harness:list", "harness:launch",
-  "files:pick", "files:saveAs", "files:writeBytes", "files:reveal", "files:openStudio", "files:list",
+  "files:pick", "files:saveAs", "files:saveText", "files:writeBytes", "files:reveal", "files:openStudio", "files:list",
+  "artifact:view",
   "open:external",
 ]);
 const EVENTS = new Set(["model:progress", "model:loaded", "model:unloaded", "chat:delta", "job:update", "rc:status", "rc:turn", "update:status", "agent:item", "agent:delta", "agent:status"]);

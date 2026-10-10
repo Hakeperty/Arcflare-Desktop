@@ -5,6 +5,7 @@
 // no Node access; everything it can do is listed in preload.js.
 
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme } = require("electron");
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -32,6 +33,7 @@ let win = null;
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "arcfile", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
+  { scheme: "arcview", privileges: { standard: true, secure: true } },
 ]);
 
 const granted = new Set();
@@ -47,6 +49,45 @@ function allowed(p) {
 function fileFromUrl(u) {
   // arcfile://local/?p=<encoded absolute path>
   return new URL(u).searchParams.get("p") || "";
+}
+
+// -------------------------------------------------------------- artifacts ----
+//
+// arcview://view/<token> — a preview of something a chat reply made (a page,
+// an SVG, a React component). The page shows it in an <iframe sandbox> with no
+// allow-same-origin, so it can't touch the app, and serves it with its own
+// CSP: inline code runs, nothing loads from the network unless the person
+// switched "allow CDN" on for it.
+
+const views = new Map(); // token → { html, net }
+const CDNS = "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com https://esm.sh";
+const FONTS = "https://fonts.googleapis.com https://fonts.gstatic.com";
+const RUNTIME = path.join(__dirname, "..", "dist", "runtime", "react-runtime.js");
+
+function viewCsp(net) {
+  const cdn = net ? ` ${CDNS}` : "";
+  return [
+    "default-src 'none'",
+    `script-src 'unsafe-inline' 'unsafe-eval' arcview:${cdn}`,
+    `style-src 'unsafe-inline' arcview:${cdn}${net ? ` ${FONTS}` : ""}`,
+    `font-src data:${net ? ` ${FONTS}${cdn}` : ""}`,
+    `img-src data: blob:${net ? " https:" : ""}`,
+    "media-src data: blob:",
+    `connect-src ${net ? CDNS : "'none'"}`,
+    "frame-src 'none'", "form-action 'none'", "base-uri 'none'",
+  ].join("; ");
+}
+
+function serveView(req) {
+  const u = new URL(req.url);
+  if (u.host !== "view") return new Response("not found", { status: 404 });
+  if (u.pathname === "/_/react-runtime.js") {
+    if (!fs.existsSync(RUNTIME)) return new Response("missing runtime", { status: 404 });
+    return new Response(fs.readFileSync(RUNTIME), { headers: { "content-type": "text/javascript; charset=utf-8" } });
+  }
+  const v = views.get(u.pathname.slice(1));
+  if (!v) return new Response("This preview has expired. Open it again from the chat.", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } });
+  return new Response(v.html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": viewCsp(v.net), "cache-control": "no-store" } });
 }
 
 // ------------------------------------------------------------------ window ----
@@ -237,6 +278,21 @@ handle("files:saveAs", async (src, opts = {}) => {
   fs.copyFileSync(src, r.filePath);
   return r.filePath;
 });
+handle("files:saveText", async (name, text, opts = {}) => {
+  // Saving an artifact: the person picks where, so nothing is written unasked.
+  const safe = path.basename(String(name || "artifact.txt")).replace(/[^\w.\-]+/g, "_");
+  const r = await dialog.showSaveDialog(win, { defaultPath: safe, filters: opts.filters || [] });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, String(text ?? ""), "utf8");
+  return r.filePath;
+});
+handle("artifact:view", (html, opts = {}) => {
+  const token = crypto.randomBytes(12).toString("hex");
+  views.set(token, { html: String(html ?? ""), net: !!opts.net });
+  // A handful are live at a time (one per open panel and version); keep the last 40.
+  while (views.size > 40) views.delete(views.keys().next().value);
+  return `arcview://view/${token}`;
+});
 handle("files:writeBytes", (name, bytes) => {
   // For edited meshes: the renderer exports a .glb; it lands in the studio folder.
   const safe = path.basename(String(name)).replace(/[^\w.\-]+/g, "_") || "export.bin";
@@ -273,6 +329,7 @@ app.whenReady().then(() => {
     if (!allowed(p) || !fs.existsSync(p)) return new Response("not allowed", { status: 403 });
     return net.fetch(pathToFileURL(p).toString());
   });
+  protocol.handle("arcview", serveView);
   createWindow();
   updater.start();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

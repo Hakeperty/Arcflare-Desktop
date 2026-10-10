@@ -167,6 +167,10 @@ export const api = {
     call<string | null>("files:pick", opts ?? {}),
   saveAs: (src: string, opts?: { filters?: { name: string; extensions: string[] }[] }) => call<string | null>("files:saveAs", src, opts ?? {}),
   writeBytes: (name: string, bytes: ArrayBuffer) => call<string>("files:writeBytes", name, bytes),
+  saveText: (name: string, text: string, opts?: { filters?: { name: string; extensions: string[] }[] }) =>
+    call<string | null>("files:saveText", name, text, opts ?? {}),
+  /** Hands a preview document to the main process; returns the arcview:// URL a sandboxed frame loads it from. */
+  artifactView: (html: string, opts?: { net?: boolean }) => call<string>("artifact:view", html, opts ?? {}),
   reveal: (p: string) => call<boolean>("files:reveal", p),
   openStudioFolder: () => call<void>("files:openStudio"),
   studioFiles: (kind: "image" | "mesh" | "audio") => call<StudioFile[]>("files:list", kind),

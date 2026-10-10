@@ -197,6 +197,62 @@ async function checkStudioTab(tab) {
   results.push({ name: `studio › ${tab}`, ok: problems.length === before, errs: problems.slice(before) });
 }
 
+// ----------------------------------------------------------- artifacts ----
+//
+// A saved conversation with an HTML page and a React component in it: each
+// must open in the panel and actually run inside the sandboxed preview frame.
+// The artifacts post what they rendered back to the page, which is the only
+// way out of the frame.
+
+const ARTIFACT_CONVO = [{
+  id: "smoke", title: "artifacts", system: "", created: 1,
+  turns: [
+    { id: "u1", role: "user", content: "make a page" },
+    { id: "a1", role: "assistant", content: [
+      "Here is a page.",
+      '<artifact id="smoke-page" type="html" title="Smoke page">',
+      '<!doctype html><html><head><title>x</title></head><body><h1 id="h">hello from html</h1>',
+      '<script>parent.postMessage({ arc: 1, type: "smoke", text: document.getElementById("h").textContent }, "*")</script></body></html>',
+      "</artifact>",
+      '<artifact id="smoke-react" type="react" title="Smoke component">',
+      'import { useEffect, useState } from "react";',
+      "export default function App() {",
+      "  const [n, setN] = useState(41);",
+      "  useEffect(() => { setN(42); }, []);",
+      '  useEffect(() => { if (n === 42) parent.postMessage({ arc: 1, type: "smoke", text: document.body.innerText.trim() }, "*"); }, [n]);',
+      "  return <p>react says {n}</p>;",
+      "}",
+      "</artifact>",
+    ].join("\n") },
+  ],
+}];
+
+async function checkArtifact(title, expect) {
+  const before = problems.length;
+  await evaluate(`(() => { window.__smoke = []; return true; })()`);
+  const clicked = await evaluate(`(() => {
+    const c = [...document.querySelectorAll(".art-card")].find((x) => x.textContent.includes(${JSON.stringify(title)}));
+    if (!c) return false;
+    c.click();
+    return true;
+  })()`);
+  if (!clicked) throw new Error(`no card for the artifact "${title}"`);
+  await until(`(window.__smoke || []).some((t) => t === ${JSON.stringify(expect)})`, `"${expect}" from the ${title} preview`);
+  const err = await evaluate(`document.querySelector(".art-foot .err")?.textContent || ""`);
+  results.push({ name: `artifact › ${title}`, ok: problems.length === before && !err, errs: [...problems.slice(before), ...(err ? [err] : [])] });
+}
+
+async function checkArtifacts() {
+  await evaluate(`(() => { localStorage.setItem("arcflare.chats", ${JSON.stringify(JSON.stringify(ARTIFACT_CONVO))}); location.reload(); return true; })()`);
+  await sleep(500);
+  await until(`document.querySelectorAll(".sidebar .nav").length >= ${VIEWS.length}`, "the sidebar after reload");
+  await evaluate(`(() => { addEventListener("message", (e) => { if (e.data && e.data.type === "smoke") (window.__smoke = window.__smoke || []).push(e.data.text); }); return true; })()`);
+  await clickNav("chat");
+  await until(viewOk("chat"), "the chat view");
+  await checkArtifact("Smoke page", "hello from html");
+  await checkArtifact("Smoke component", "react says 42");
+}
+
 // ----------------------------------------------------------------- run ----
 
 let failed = false;
@@ -208,6 +264,7 @@ try {
     await checkView(v);
     if (v === "studio") for (const t of STUDIO_TABS) await checkStudioTab(t);
   }
+  await checkArtifacts();
   // Keyboard switching (Ctrl+1 → home) goes through the same state.
   await evaluate(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "1", ctrlKey: true })), true`);
   await until(viewOk("home"), "Ctrl+1 to show home");
