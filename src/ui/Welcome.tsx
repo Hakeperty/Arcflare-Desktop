@@ -2,11 +2,15 @@
 // what this machine has, the engine (llama.cpp), a first model that fits, and
 // a hello. Every step can be skipped, closing keeps your place, and finishing
 // remembers it (Settings and Home can open it again).
+//
+// The engine downloads itself the moment this opens, while the first step is
+// being read, so a fresh install doesn't ask anyone to find a releases page.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, uid, type HubModel, type LocalModel, type ModelProgress, type SystemInfo } from "../lib/api";
 import { setup, type SetupState } from "../lib/setup";
 import { DotArt, Label, Meter, Progress, Spec, useJob } from "./kit";
+import { BUILDS, EngineProgress, useEngineInstall, type EngineInstall } from "./Engine";
 import { Term } from "./Term";
 import type { View } from "../App";
 
@@ -35,6 +39,15 @@ export function Welcome({ info, onRefresh, onClose, go }: {
     try { const s = localStorage.getItem(STEP_KEY) as Step | null; return s && STEPS.some((x) => x.id === s) ? s : "machine"; } catch { return "machine"; }
   });
   useEffect(() => { setup.state().then(setSt).catch(() => {}); }, []);
+  // No llama.cpp yet: start fetching it now. Once only; a failure waits for the person (retry).
+  const install = useEngineInstall(onRefresh);
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStarted.current || !st || !info || st.pretendNoEngine) return;
+    autoStarted.current = true;
+    if (!info.llamaServer) install.start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [st, info]);
   useEffect(() => { try { localStorage.setItem(STEP_KEY, step); } catch { /* storage blocked */ } }, [step]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(false); };
@@ -72,9 +85,9 @@ export function Welcome({ info, onRefresh, onClose, go }: {
         </aside>
 
         <section className="welcome-main">
-          {step === "machine" && <MachineStep info={info} st={st} onNext={next} />}
-          {step === "engine" && <EngineStep info={info} st={st} onRefresh={onRefresh} onNext={next} />}
-          {step === "model" && <ModelStep info={info} onNext={next} />}
+          {step === "machine" && <MachineStep info={info} st={st} install={install} onNext={next} />}
+          {step === "engine" && <EngineStep info={info} st={st} install={install} onRefresh={onRefresh} onNext={next} />}
+          {step === "model" && <ModelStep info={info} install={install} onNext={next} />}
           {step === "hello" && <HelloStep info={info} onFinish={finish} />}
           {step !== "hello" && (
             <div className="welcome-skip">
@@ -99,7 +112,7 @@ function StepHead({ n, label, title, children }: { n: string; label: string; tit
   );
 }
 
-function MachineStep({ info, st, onNext }: { info: SystemInfo | null; st: SetupState | null; onNext: () => void }) {
+function MachineStep({ info, st, install, onNext }: { info: SystemInfo | null; st: SetupState | null; install: EngineInstall; onNext: () => void }) {
   const free = info?.gpu.freeGb ?? null, total = info?.gpu.totalGb ?? null;
   const verdict = free == null ? "We'll check what fits once the engine is set up."
     : free >= 20 ? "Plenty of room: big, capable models will run well here."
@@ -118,7 +131,9 @@ function MachineStep({ info, st, onNext }: { info: SystemInfo | null; st: SetupS
           <Spec k={<>free <Term k="vram">vram</Term></>} v={free != null ? `${free} GB${total ? ` of ${total}` : ""}` : "not measured yet"} />
           {free != null && total ? <Meter need={total - free} of={total} label={`${(total - free).toFixed(1)} GB already in use`} /> : null}
           <Spec k="memory (ram)" v={info ? `${info.ramGb} GB` : "…"} />
-          <Spec k={<Term k="llamacpp">llama.cpp</Term>} v={info ? (info.llamaServer ? <span className="ok-t">found ✓</span> : <span className="warn-t">not yet — next step</span>) : "…"} />
+          <Spec k={<Term k="llamacpp">llama.cpp</Term>} v={info ? (info.llamaServer ? <span className="ok-t">found ✓</span>
+            : install.running ? <span className="warn-t">downloading… {install.job?.progress != null ? `${install.job.progress}%` : ""}</span>
+            : <span className="warn-t">not yet — next step</span>) : "…"} />
           <Spec k="python (3d & speech)" v={info ? (info.python ? "ready" : "optional, later") : "…"} />
         </dl>
       </div>
@@ -128,16 +143,18 @@ function MachineStep({ info, st, onNext }: { info: SystemInfo | null; st: SetupS
   );
 }
 
-function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; st: SetupState | null; onRefresh: () => void; onNext: () => void }) {
+function EngineStep({ info, st, install, onRefresh, onNext }: { info: SystemInfo | null; st: SetupState | null; install: EngineInstall; onRefresh: () => void; onNext: () => void }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [build, setBuild] = useState("");
+  const [byHand, setByHand] = useState(false);
   const found = st?.pretendNoEngine ? null : info?.llamaServer;
 
   async function findIt() {
     setBusy(true); setMsg("");
     try {
       const p = await setup.find();
-      setMsg(p ? `Found it: ${p}` : "Not found in the usual places yet. Download it below, or point to it yourself.");
+      setMsg(p ? `Found it: ${p}` : "Not found in the usual places yet.");
       onRefresh();
     } catch (e) { setMsg((e as Error).message); }
     setBusy(false);
@@ -156,7 +173,7 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
     return (
       <>
         <StepHead n="02" label="the engine" title="The engine is ready.">
-          <Term k="llamacpp" /> is what actually runs models on your GPU. ArcFlare found it, so there's nothing to do here.
+          <Term k="llamacpp" /> is what actually runs models on your GPU. {install.job?.state === "done" ? "ArcFlare just downloaded the right build for this machine." : "ArcFlare found it, so there's nothing to do here."}
         </StepHead>
         <div className="panel" style={{ padding: 14 }}><Spec k="llama-server" v={<span className="mono" style={{ fontSize: 12 }}>{found}</span>} /></div>
         <div className="row" style={{ gap: 8, marginTop: 18 }}><button className="btn primary" onClick={onNext}>next: pick a model →</button></div>
@@ -166,36 +183,65 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
 
   return (
     <>
-      <StepHead n="02" label="the engine" title="One download: the engine that runs models.">
-        ArcFlare uses <Term k="llamacpp" />, a free, open engine, to run language models on your GPU. It isn't bundled,
-        because the right build depends on your graphics card. It takes two minutes.
+      <StepHead n="02" label="the engine" title={install.running ? "Getting the engine…" : "One download: the engine that runs models."}>
+        ArcFlare uses <Term k="llamacpp" />, a free, open engine, to run language models on your GPU. The right build depends on your
+        graphics card, so ArcFlare picks it for you{st?.gpu.name ? <> (for your <b>{st.gpu.name}</b>)</> : null} and checks the download before using it.
       </StepHead>
-      <div className="welcome-options">
-        <div className="card col">
-          <div className="label"><span className="a">a</span> already have it?</div>
-          <p className="muted" style={{ fontSize: 13, flex: 1 }}>We'll look on your PATH and in the usual folders.</p>
-          <div className="row" style={{ gap: 6 }}>
-            <button className="btn primary sm" disabled={busy} onClick={findIt}>{busy ? "looking…" : "find it for me"}</button>
-            <button className="btn sm" onClick={pickIt}>choose the file…</button>
+
+      {install.running ? (
+        <div className="panel" style={{ padding: 16 }}>
+          <EngineProgress install={install} />
+          <p className="dim" style={{ fontSize: 12, margin: "12px 0 0" }}>
+            This usually takes a minute or two. You don&apos;t need to wait here: the next step waits for it.
+          </p>
+          <button className="btn sm" style={{ marginTop: 10 }} onClick={install.cancel}>cancel</button>
+        </div>
+      ) : (
+        <div className="panel" style={{ padding: 16 }}>
+          {install.job?.state === "failed" || install.job?.state === "cancelled" ? <EngineProgress install={install} /> : null}
+          {install.err && <div className="err">{install.err}</div>}
+          <div className="row" style={{ gap: 8, marginTop: install.job || install.err ? 12 : 0, flexWrap: "wrap" }}>
+            <button className="btn primary" onClick={() => install.start(build)}>{install.job ? "try again" : "download llama.cpp"}</button>
+            <select className="select" style={{ maxWidth: 360 }} value={build} onChange={(e) => setBuild(e.target.value)} aria-label="which build">
+              {BUILDS.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
           </div>
         </div>
-        <div className="card col">
-          <div className="label"><span className="a">b</span> download it</div>
-          {st ? (
-            <>
-              <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
-                For your {st.gpu.name ?? "graphics card"}, get the <b>{st.build.backend}</b> build: {st.build.why}
-              </p>
-              <div className="welcome-file">{st.build.file}</div>
-              <ol className="welcome-howto">
-                <li><button className="linkbtn" onClick={() => api.openExternal(st.releases)}>Open the official releases page ↗</button> and download that file.</li>
-                <li><button className="linkbtn" onClick={() => setup.folder().catch(() => {})}>Open the folder</button> <span className="dim mono" style={{ fontSize: 11 }}>{st.build.folder}</span> and unzip it there.</li>
-                <li>Come back and press <b>find it for me</b>.</li>
-              </ol>
-            </>
-          ) : <p className="muted">Checking your graphics card…</p>}
-        </div>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        <button className="linkbtn" style={{ fontSize: 12 }} onClick={() => setByHand(!byHand)}>
+          {byHand ? "hide this" : "I already have llama.cpp, or I'd rather do it myself"}
+        </button>
       </div>
+      {byHand && (
+        <div className="welcome-options" style={{ marginTop: 12 }}>
+          <div className="card col">
+            <div className="label"><span className="a">a</span> already have it?</div>
+            <p className="muted" style={{ fontSize: 13, flex: 1 }}>We&apos;ll look on your PATH and in the usual folders.</p>
+            <div className="row" style={{ gap: 6 }}>
+              <button className="btn primary sm" disabled={busy} onClick={findIt}>{busy ? "looking…" : "find it for me"}</button>
+              <button className="btn sm" onClick={pickIt}>choose the file…</button>
+            </div>
+          </div>
+          <div className="card col">
+            <div className="label"><span className="a">b</span> download it yourself</div>
+            {st ? (
+              <>
+                <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
+                  For your {st.gpu.name ?? "graphics card"}, get the <b>{st.build.backend}</b> build: {st.build.why}
+                </p>
+                <div className="welcome-file">{st.build.file}</div>
+                <ol className="welcome-howto">
+                  <li><button className="linkbtn" onClick={() => api.openExternal(st.releases)}>Open the official releases page ↗</button> and download that file.</li>
+                  <li><button className="linkbtn" onClick={() => setup.folder().catch(() => {})}>Open the folder</button> <span className="dim mono" style={{ fontSize: 11 }}>{st.build.folder}</span> and unzip it there.</li>
+                  <li>Come back and press <b>find it for me</b>.</li>
+                </ol>
+              </>
+            ) : <p className="muted">Checking your graphics card…</p>}
+          </div>
+        </div>
+      )}
       {msg && <p className="welcome-msg">{msg}</p>}
     </>
   );
@@ -203,7 +249,7 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
 
 function platformExe() { return window.arc.platform === "win32" ? ".exe" : ""; }
 
-function ModelStep({ info, onNext }: { info: SystemInfo | null; onNext: () => void }) {
+function ModelStep({ info, install, onNext }: { info: SystemInfo | null; install: EngineInstall; onNext: () => void }) {
   const [local, setLocal] = useState<LocalModel[] | null>(null);
   const [hub, setHub] = useState<{ freeGb: number | null; models: HubModel[] } | null>(null);
   const [err, setErr] = useState("");
@@ -252,9 +298,14 @@ function ModelStep({ info, onNext }: { info: SystemInfo | null; onNext: () => vo
   if (!info?.llamaServer) {
     return (
       <>
-        <StepHead n="03" label="a first model" title="Set up the engine first.">
-          Models need <Term k="llamacpp" /> to run. Go back one step, then come back here.
+        <StepHead n="03" label="a first model" title={install.running ? "Waiting for the engine…" : "Set up the engine first."}>
+          {install.running
+            ? <>Models need <Term k="llamacpp" /> to run, and it&apos;s still downloading. This step fills in by itself when it&apos;s done.</>
+            : <>Models need <Term k="llamacpp" /> to run. Go back one step, then come back here.</>}
         </StepHead>
+        {install.running && (
+          <div className="panel" style={{ padding: 16 }}><EngineProgress install={install} /></div>
+        )}
       </>
     );
   }

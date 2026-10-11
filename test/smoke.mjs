@@ -154,7 +154,7 @@ async function connect() {
 
 // --------------------------------------------------------------- views ----
 
-const VIEWS = ["home", "chat", "agent", "studio", "models", "harnesses", "jobs", "settings"];
+const VIEWS = ["home", "chat", "agent", "studio", "shop", "models", "harnesses", "jobs", "settings"];
 const STUDIO_TABS = ["image", "3d model", "speech", "flow"];
 const results = [];
 

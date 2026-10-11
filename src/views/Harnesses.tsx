@@ -29,7 +29,7 @@ export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
 
   return (
     <div className="page">
-      <ViewHead index="06" label="harnesses" title="Harnesses">
+      <ViewHead index="07" label="harnesses" title="Harnesses">
         Already use a coding agent? Open it here and it talks to the model on your GPU instead of a cloud API. ArcFlare
         writes its config (backing up yours first) and opens it in a terminal.
       </ViewHead>

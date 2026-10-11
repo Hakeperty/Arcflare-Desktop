@@ -7,7 +7,7 @@ import { EmptyState, JobStatus, Panel, ViewHead } from "../ui/kit";
 export function Jobs({ jobs }: { jobs: Job[] }) {
   return (
     <div className="page">
-      <ViewHead index="07" label="jobs" title="Jobs">
+      <ViewHead index="08" label="jobs" title="Jobs">
         Downloads, setups and generations from this session. They keep running when you switch screens.
       </ViewHead>
       {jobs.length === 0 && (

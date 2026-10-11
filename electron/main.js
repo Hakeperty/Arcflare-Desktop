@@ -119,7 +119,7 @@ function handle(channel, fn) {
 }
 
 handle("sys:info", () => eng.systemInfo());
-require("./setup")(handle); // first-run wizard: setup:state/find/folder/done
+require("./setup")(handle); // first-run wizard: setup:state/find/folder/done/installEngine
 
 handle("settings:get", () => {
   const c = serve.loadConfig();
@@ -217,6 +217,11 @@ handle("jobs:cancel", (id) => eng.cancelJob(id));
 
 handle("hub:catalogue", (refresh) => eng.hubCatalogue(refresh));
 handle("hub:install", (slug, model) => eng.hubInstall(slug, model));
+
+// The shop: search Hugging Face's GGUF models, see each quant against free VRAM, download one.
+handle("shop:search", (opts) => eng.shopSearch(opts || {}));
+handle("shop:repo", (repo) => eng.shopRepo(repo));
+handle("shop:download", (repo, tag) => eng.shopDownload(repo, tag));
 
 handle("harness:list", () => eng.harnessList());
 handle("harness:launch", (id, modelId) => eng.launchHarness(id, modelId));

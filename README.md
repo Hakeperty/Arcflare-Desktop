@@ -21,8 +21,43 @@ the `arcflare` command never disagree, and they share one settings file
 | **Studio · 3D** | Hunyuan3D and TripoSR, from an image or a description. Then **point and ask**: paint a soft selection on the model, type "make this bigger", "smooth it", "paint it red" or "pull it up a bit", and it changes just that part. Undo/redo, export `.glb`. |
 | **Studio · Speech** | Qwen3-TTS, Kokoro, Chatterbox, VoxCPM2, OuteTTS. Preset voices, tone, voice cloning. |
 | **Studio · Flow** | A node graph that chains the tools: prompt → rewrite with the chat model → image → 3D, or text → speech. |
-| **Models** | What's on this machine, and the arcflare.net hub marked fits / tight / too big against your free VRAM, with one-click download. |
+| **Shop** | Open models marked fits / tight / too big against your free VRAM, with one-click download. ArcFlare's picks (the arcflare.net catalogue, licences included), plus every GGUF model on Hugging Face: search it, see each quantisation's real file size, and get the one that fits. |
+| **Models** | What's on this machine, ready to load. |
 | **Harnesses** | Open OpenCode, Hermes, Codex or the ArcFlare agent in a terminal, already pointed at your model. |
+
+## llama.cpp comes with it
+
+The first time the app opens, setup downloads [llama.cpp](https://github.com/ggml-org/llama.cpp)
+for you: the build that suits your OS and graphics card (Metal, CUDA, Vulkan, or
+CPU), checked against the SHA-256 GitHub publishes for it, unpacked into
+`~/.arcflare/engine`. It is the engine's own installer (`arcflare engine install`),
+run as a background job, so the app and the CLI share it. If it fails (offline, a
+GitHub rate limit) the wizard says why and offers *try again*, another build, or
+pointing at a llama.cpp you already have. Home and Settings offer the same button
+any time llama.cpp is missing.
+
+## Warnings on Windows and macOS
+
+The installers are not code-signed yet, so a file downloaded in a browser may be
+met with Windows' SmartScreen ("Windows protected your PC") or macOS Gatekeeper.
+What is done about it, and what is left:
+
+- **`install-desktop.ps1` / `install-desktop.sh`** download the release, check it
+  against `SHA256SUMS`, and install it. A file saved that way has no "downloaded
+  from the internet" mark, so there is no warning to click through. This is the
+  recommended route until the builds are signed.
+- **macOS builds are ad-hoc signed** (`build/adhoc-sign.js`) when there is no
+  certificate. Unsigned, an Apple-silicon app is reported as "damaged" with no way
+  past it; ad-hoc signed, it is the ordinary "unidentified developer" prompt (open
+  it once, then *System Settings → Privacy & Security → Open Anyway*).
+- **Real signing is wired in and off.** Add repository secrets and the release
+  workflow uses them: `WIN_CSC_LINK` + `WIN_CSC_KEY_PASSWORD` for Windows,
+  `MAC_CSC_LINK` + `MAC_CSC_KEY_PASSWORD` for a Developer ID certificate, and
+  `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` to notarize. Signing
+  with a certificate is the only thing that removes SmartScreen's warning for good
+  (a new certificate may need some downloads before it is trusted, unless it is an
+  EV certificate). A free option for open-source projects is
+  [SignPath Foundation](https://signpath.org/).
 
 ## How editing a 3D model works
 

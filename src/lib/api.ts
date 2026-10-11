@@ -102,16 +102,37 @@ export type Job = {
   error: string | null;
   stderr?: string[] | null;
   started: number;
+  /** What the job is about: { engine: true } for llama.cpp, { repo, tag } for a shop download, { slug } for a hub one. */
+  meta?: { engine?: boolean; repo?: string; tag?: string; slug?: string; [k: string]: unknown };
 };
 
 export type ImageModels = { sd: string | null; models: { path: string; name: string; sizeGb: number }[] };
 
+export type Fit = "fits" | "tight" | "no" | "unknown";
+
 export type HubModel = {
   slug: string; name: string; author: string; description: string; category: string; tags: string[];
   license: string; commercial: boolean | null; defaultSize: string; vram: string; run: string;
-  runnable: boolean; featured: boolean; url: string;
-  fit: "fits" | "tight" | "no" | "unknown";
+  runnable: boolean; featured: boolean; url: string; updated?: string;
+  fit: Fit;
   plan: { kind: "pull" | "gen" | "none"; ref?: string; id?: string };
+  /** Already on this machine (a pull entry whose files are in the model cache). */
+  installed?: boolean;
+};
+
+export type HubCatalogue = { source: string; url: string; ageText: string; freeGb: number | null; models: HubModel[] };
+
+/** A Hugging Face GGUF repo in search results. */
+export type ShopResult = {
+  repo: string; author: string; downloads: number; likes: number; task: string | null;
+  tags: string[]; updated: string | null; downloaded: boolean;
+};
+export type ShopSort = "trendingScore" | "downloads" | "likes" | "lastModified";
+export type ShopQuant = { tag: string; gb: number | null; shards: number; fit: Fit; downloaded: boolean };
+export type ShopRepo = {
+  repo: string; freeGb: number | null; license: string | null; gated: boolean;
+  downloads: number | null; likes: number | null; task: string | null; vision: boolean;
+  quants: ShopQuant[]; projectorGb: number;
 };
 
 export type Settings = {
@@ -157,8 +178,12 @@ export const api = {
   jobs: () => call<Job[]>("jobs:list"),
   cancelJob: (id: string) => call<void>("jobs:cancel", id),
 
-  hub: (refresh?: boolean) => call<{ source: string; url: string; ageText: string; freeGb: number | null; models: HubModel[] }>("hub:catalogue", !!refresh),
+  hub: (refresh?: boolean) => call<HubCatalogue>("hub:catalogue", !!refresh),
   hubInstall: (slug: string, model: HubModel) => call<Job>("hub:install", slug, model),
+
+  shopSearch: (opts: { query?: string; sort?: ShopSort }) => call<{ freeGb: number | null; results: ShopResult[] }>("shop:search", opts),
+  shopRepo: (repo: string) => call<ShopRepo>("shop:repo", repo),
+  shopDownload: (repo: string, tag?: string) => call<Job>("shop:download", repo, tag ?? ""),
 
   harnesses: () => call<Harness[]>("harness:list"),
   launchHarness: (id: string, modelId?: string) => call<boolean>("harness:launch", id, modelId),

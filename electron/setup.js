@@ -4,8 +4,11 @@
 // setup has been done. Everything else the wizard uses (system info, the hub,
 // downloads, loading, chat) is the app's existing IPC.
 //
-// There is no llama.cpp downloader in the engine, so none here either: the
-// wizard links the official releases and names the file to pick.
+// llama.cpp itself is fetched by the engine (`arcflare engine install`, run
+// here as a job): the right prebuilt build for this OS and GPU, checked against
+// the SHA-256 GitHub publishes for it. The wizard starts it on its own, so a
+// fresh install has an engine without anyone visiting a releases page; the
+// manual route (releases page + folder) stays as the fallback.
 
 const fs = require("fs");
 const os = require("os");
@@ -104,6 +107,9 @@ module.exports = function registerSetup(handle) {
     await shell.openPath(dir);
     return dir;
   });
+
+  // Download and install llama.cpp. Returns the job; progress arrives as job:update.
+  handle("setup:installEngine", (want) => require("./engine").installEngine(want));
 
   handle("setup:done", (done) => {
     const c = serve.loadConfig();

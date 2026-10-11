@@ -87,9 +87,9 @@ export function EmptyState({ seed, title, children, action }: {
  * How much of something is used: teal with room to spare, amber when tight,
  * red when it doesn't fit. `need` against `of`, both in the same unit.
  */
-export function Meter({ need, of, label }: { need: number; of: number; label?: React.ReactNode }) {
+export function Meter({ need, of, label, tone: forced }: { need: number; of: number; label?: React.ReactNode; tone?: "ok" | "warn" | "bad" }) {
   const share = of > 0 ? need / of : 1;
-  const tone = share <= 0.7 ? "ok" : share <= 1 ? "warn" : "bad";
+  const tone = forced ?? (share <= 0.7 ? "ok" : share <= 1 ? "warn" : "bad");
   return (
     <div className="meter-wrap" title={typeof label === "string" ? label : undefined}>
       <div className={`meter ${tone}`}><i style={{ width: `${Math.max(3, Math.min(100, share * 100))}%` }} /></div>

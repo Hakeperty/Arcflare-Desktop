@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 import { api, updates, type Settings as S, type SystemInfo, type UpdateStatus } from "../lib/api";
 import { updateText } from "../ui/Update";
 import { Field, Panel, ViewHead } from "../ui/kit";
+import { EngineBanner } from "../ui/Engine";
 
-export function Settings({ info, update, openSetup }: { info: SystemInfo | null; update: UpdateStatus | null; openSetup: () => void }) {
+export function Settings({ info, update, openSetup, refresh }: { info: SystemInfo | null; update: UpdateStatus | null; openSetup: () => void; refresh: () => void }) {
   const [s, setS] = useState<S | null>(null);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
@@ -27,12 +28,14 @@ export function Settings({ info, update, openSetup }: { info: SystemInfo | null;
   return (
     <div className="page">
      <div style={{ maxWidth: 820 }}>
-      <ViewHead index="08" label="settings" title="Settings" right={<button className="btn sm" onClick={openSetup}>run setup again</button>}>
+      <ViewHead index="09" label="settings" title="Settings" right={<button className="btn sm" onClick={openSetup}>run setup again</button>}>
         Shared with the <code className="md-code">arcflare</code> command line: change it in either place.
       </ViewHead>
 
       <Panel title="engine">
         <div className="col">
+          {info && !info.llamaServer && <EngineBanner onDone={refresh} />}
+          {info?.llamaServer && <div className="muted" style={{ fontSize: 12.5 }}>llama.cpp is installed: <span className="mono">{info.llamaServer}</span></div>}
           <Field label="llama-server">
             <div className="row">
               <input className="input" value={s.llamaServer} placeholder={info?.llamaServer || "found automatically"} onChange={(e) => set("llamaServer", e.target.value)} />

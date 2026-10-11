@@ -3,7 +3,16 @@
 #   ArcFlare-Setup-x64.exe · ArcFlare-mac-arm64.dmg · ArcFlare-mac-x64.dmg
 #   ArcFlare-linux-x86_64.AppImage · ArcFlare-linux-amd64.deb
 # Names carry no version, so /releases/latest/download/<name> is a stable link
-# the website can point at.
+# the website can point at. SHA256SUMS lists the installers' checksums; the
+# website's installers (install-desktop.sh / .ps1) verify downloads against it.
+#
+# Code signing is opt-in by repository secrets, so nothing here changes until
+# they exist (the builds are unsigned, which is what makes Windows show
+# SmartScreen and macOS refuse to open them without a click):
+#   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD   a Windows code-signing certificate (.pfx, base64 or URL)
+#   MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD   a "Developer ID Application" certificate (.p12, base64 or URL)
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID   also notarize the macOS build
+# With no macOS certificate the app is signed ad-hoc (build/adhoc-sign.js).
 
 name: release
 
@@ -55,10 +64,22 @@ jobs:
 
       - name: Build installers
         working-directory: ArcFlare-Desktop
+        shell: bash
         env:
-          # Unsigned for now: no certificates in CI.
+          # electron-builder signs when CSC_LINK is set and skips signing when it
+          # is empty. Auto-discovery is off so a runner's own keychain is never used.
+          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx vite build && npx electron-builder ${{ matrix.target }} --publish never
+          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+        run: |
+          extra=""
+          # Notarize only when there is a certificate and Apple credentials to do it with.
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_ID" ] && [ "${{ matrix.os }}" = "macos-latest" ]; then extra="-c.mac.notarize=true"; fi
+          npx vite build
+          npx electron-builder ${{ matrix.target }} --publish never $extra
 
       - uses: actions/upload-artifact@v4
         with:
@@ -81,6 +102,10 @@ jobs:
         with:
           path: out
           merge-multiple: true
+      # Checksums of the installers, so a download can be checked against what was built.
+      - name: SHA256SUMS
+        working-directory: out
+        run: sha256sum $(ls *.exe *.dmg *.AppImage *.deb 2>/dev/null) | tee SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: out/*
@@ -96,5 +121,12 @@ jobs:
             | Linux (any) | `ArcFlare-linux-x86_64.AppImage` |
             | Debian / Ubuntu | `ArcFlare-linux-amd64.deb` |
 
-            The builds are not code-signed yet. On Windows, choose **More info → Run anyway** in SmartScreen.
-            On macOS, right-click the app and choose **Open** the first time.
+            Or from a terminal, which checks the download against `SHA256SUMS` first:
+
+            - Windows (PowerShell): `irm https://arcflare.net/install-desktop.ps1 | iex`
+            - macOS / Linux: `curl -fsSL https://arcflare.net/install-desktop.sh | sh`
+
+            The builds are not code-signed yet, so a file downloaded in a browser may get a warning.
+            The terminal installers above open without one. From a browser: on Windows, choose
+            **More info → Run anyway** in SmartScreen. On macOS, open the app once, then
+            **System Settings → Privacy & Security → Open Anyway**.

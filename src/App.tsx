@@ -5,6 +5,7 @@ import { Home } from "./views/Home";
 import { Chat } from "./views/Chat";
 import { Agent } from "./views/Agent";
 import { Studio } from "./views/Studio";
+import { Shop } from "./views/Shop";
 import { Models } from "./views/Models";
 import { Harnesses } from "./views/Harnesses";
 import { Settings } from "./views/Settings";
@@ -14,17 +15,18 @@ import { UpdatePill, useUpdates } from "./ui/Update";
 import { Welcome } from "./ui/Welcome";
 import { setup } from "./lib/setup";
 
-export type View = "home" | "chat" | "agent" | "studio" | "models" | "harnesses" | "jobs" | "settings";
+export type View = "home" | "chat" | "agent" | "studio" | "shop" | "models" | "harnesses" | "jobs" | "settings";
 
 const NAV: { id: View; label: string; key: string; group?: string }[] = [
   { id: "home", label: "home", key: "1" },
   { id: "chat", label: "chat", key: "2" },
   { id: "agent", label: "agent", key: "3" },
   { id: "studio", label: "studio", key: "4" },
-  { id: "models", label: "models", key: "5", group: "machine" },
-  { id: "harnesses", label: "harnesses", key: "6" },
-  { id: "jobs", label: "jobs", key: "7" },
-  { id: "settings", label: "settings", key: "8" },
+  { id: "shop", label: "shop", key: "5", group: "machine" },
+  { id: "models", label: "models", key: "6" },
+  { id: "harnesses", label: "harnesses", key: "7" },
+  { id: "jobs", label: "jobs", key: "8" },
+  { id: "settings", label: "settings", key: "9" },
 ];
 
 export function App() {
@@ -38,6 +40,9 @@ export function App() {
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneChat, setPhoneChat] = useState(0); // bump to show the Phone conversation
   const running = jobs.filter((j) => j.state === "running");
+  // A finished llama.cpp install changes what the whole app can do: look again now, not in 15 s.
+  const engineDone = jobs.some((j) => j.meta?.engine && j.state === "done");
+  useEffect(() => { if (engineDone) refreshInfo(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [engineDone]);
   // First run: open the welcome wizard until it's finished (or forced in dev).
   const [setupDone, setSetupDone] = useState<boolean | null>(null);
   const [welcome, setWelcome] = useState(false);
@@ -64,7 +69,7 @@ export function App() {
     return () => offs.forEach((f) => f());
   }, []);
 
-  // Ctrl/Cmd + 1..8 switch views, like tabs in a browser.
+  // Ctrl/Cmd + 1..9 switch views, like tabs in a browser.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -112,19 +117,22 @@ export function App() {
           <span className="grow" />
           <div className="label foot" style={{ lineHeight: 1.8 }}>
             engine {info?.engineVersion ?? "…"}<br />
-            {info?.llamaServer ? <span style={{ color: "var(--accent-2)" }}>llama.cpp found</span> : <span style={{ color: "var(--danger)" }}>no llama.cpp</span>}
+            {info?.llamaServer
+              ? <span style={{ color: "var(--accent-2)" }}>llama.cpp found</span>
+              : <button className="linkbtn" style={{ color: "var(--danger)" }} onClick={() => setView("home")} title="Open Home to install it">no llama.cpp: install</button>}
           </div>
         </nav>
 
         <main className="main">
-          {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} setupDone={setupDone} openSetup={() => setWelcome(true)} />}
+          {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} setupDone={setupDone} openSetup={() => setWelcome(true)} refresh={refreshInfo} />}
           {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />}
           {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
-          {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
+          {view === "shop" && <Shop jobs={jobs} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
+          {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} engine={info ? !!info.llamaServer : null} refresh={refreshInfo} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}
           {view === "jobs" && <Jobs jobs={jobs} />}
-          {view === "settings" && <Settings info={info} update={update} openSetup={() => setWelcome(true)} />}
+          {view === "settings" && <Settings info={info} update={update} openSetup={() => setWelcome(true)} refresh={refreshInfo} />}
         </main>
       </div>
 

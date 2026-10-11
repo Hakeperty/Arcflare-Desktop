@@ -1,7 +1,7 @@
 // The first-run wizard's own calls (electron/setup.js). Kept apart from
 // api.ts so the wizard's contract is in one place.
 
-import { ApiError } from "./api";
+import { ApiError, type Job } from "./api";
 
 async function call<T>(channel: string, ...args: unknown[]): Promise<T> {
   const r = await window.arc.invoke<T>(channel, ...args);
@@ -29,4 +29,10 @@ export const setup = {
   /** Create and open the folder ArcFlare looks in for a llama.cpp build. */
   folder: () => call<string>("setup:folder"),
   done: (done: boolean) => call<boolean>("setup:done", done),
+  /**
+   * Download llama.cpp for this machine (the engine's own installer, as a job).
+   * `want` forces a build: "vulkan" | "cuda" | "rocm" | "cpu"; omitted picks by GPU.
+   * An install already running is returned instead of starting a second one.
+   */
+  installEngine: (want?: string) => call<Job>("setup:installEngine", want),
 };

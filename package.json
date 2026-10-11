@@ -53,6 +53,7 @@
     "asarUnpack": [
       "node_modules/arcflare/**"
     ],
+    "afterSign": "build/adhoc-sign.js",
     "win": {
       "target": [
         "nsis"

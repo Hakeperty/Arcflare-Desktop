@@ -5,18 +5,20 @@ import type { Job, LoadedModel, SystemInfo } from "../lib/api";
 import { DotArt, Label, Meter, Panel, Spec, JobStatus } from "../ui/kit";
 import type { View } from "../App";
 import { Term } from "../ui/Term";
+import { EngineBanner } from "../ui/Engine";
 
-export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
+export function Home({ info, loaded, go, jobs, setupDone, openSetup, refresh }: {
   info: SystemInfo | null; loaded: LoadedModel | null; go: (v: View) => void; jobs: Job[];
-  setupDone: boolean | null; openSetup: () => void;
+  setupDone: boolean | null; openSetup: () => void; refresh: () => void;
 }) {
   const ready = !!info?.llamaServer;
   const actions: { title: string; body: string; view: View; tag: string }[] = [
     { title: "Chat", body: "Talk to a model running on your own GPU. Nothing is sent anywhere.", view: "chat", tag: "01" },
     { title: "Agent", body: "Open a folder and ask. It reads, edits and runs commands there, asking before anything risky.", view: "agent", tag: "02" },
     { title: "Studio", body: "Images, 3D you can edit by pointing and asking, speech, and flows that chain them.", view: "studio", tag: "03" },
-    { title: "Models", body: "What's on this machine, what fits your GPU, and one click to download more.", view: "models", tag: "04" },
-    { title: "Harnesses", body: "OpenCode, Hermes or Codex, pointed at your local model, in a terminal.", view: "harnesses", tag: "05" },
+    { title: "Shop", body: "Hundreds of open models, each marked against your GPU. One click to download.", view: "shop", tag: "04" },
+    { title: "Models", body: "What's on this machine, ready to load.", view: "models", tag: "05" },
+    { title: "Harnesses", body: "OpenCode, Hermes or Codex, pointed at your local model, in a terminal.", view: "harnesses", tag: "06" },
   ];
   const total = info?.gpu.totalGb ?? 0;
   const free = info?.gpu.freeGb ?? null;
@@ -33,7 +35,7 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
         <div className="row" style={{ marginTop: 16, gap: 8 }}>
           {loaded
             ? <button className="btn primary" onClick={() => go("chat")}>chat with {loaded.name}</button>
-            : <button className="btn primary" onClick={() => go("models")}>choose a model</button>}
+            : <button className="btn primary" onClick={() => go("shop")}>get a model</button>}
           <button className="btn" onClick={() => go("agent")}>open the agent</button>
         </div>
       </section>
@@ -45,14 +47,7 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
         </div>
       )}
 
-      {!ready && info && setupDone !== false && (
-        <div className="panel" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)", padding: 14, marginBottom: 16 }}>
-          <b>One thing first:</b> ArcFlare needs llama.cpp to run language models. Download a build for your GPU from{" "}
-          <a href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" rel="noreferrer">github.com/ggml-org/llama.cpp</a>, then
-          set its <code className="md-code">llama-server</code> path in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>,
-          or <a href="#" onClick={(e) => { e.preventDefault(); openSetup(); }}>let setup walk you through it</a>.
-        </div>
-      )}
+      {!ready && info && setupDone !== false && <EngineBanner onDone={refresh} />}
 
       <div className="grid2">
         <Panel title="this machine" right={<span className={`led ${info ? "on" : "busy"}`} />}>
@@ -80,8 +75,11 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
             </dl>
           ) : (
             <div className="col" style={{ gap: 10 }}>
-              <span className="muted">Nothing loaded. Pick a model in Chat or Models, and ArcFlare sizes its context to your free VRAM.</span>
-              <div className="row"><button className="btn sm" onClick={() => go("models")}>choose a model</button></div>
+              <span className="muted">Nothing loaded. Load one you have, or get one from the shop, and ArcFlare sizes its context to your free VRAM.</span>
+              <div className="row">
+                <button className="btn sm" onClick={() => go("models")}>my models</button>
+                <button className="btn sm" onClick={() => go("shop")}>open the shop</button>
+              </div>
             </div>
           )}
         </Panel>

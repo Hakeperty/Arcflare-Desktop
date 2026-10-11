@@ -1,6 +1,7 @@
 // npm test: the unit tests (TypeScript, bundled with the esbuild that Vite
 // already ships, so no extra dependency) and the IPC contract test, all run by
-// node:test.
+// node:test. bridge.test.mjs runs the main-process shop and engine-install calls
+// against a local stand-in for Hugging Face.
 //
 // The TS sources use bundler-style imports (no .ts extensions) and import
 // three, so Node can't run them directly; esbuild bundles each test file into
@@ -32,6 +33,6 @@ await build({
 });
 
 const built = readdirSync(outDir).filter((f) => f.endsWith(".test.mjs")).map((f) => join(outDir, f));
-const files = [...built, join(here, "contract.test.mjs")];
+const files = [...built, join(here, "contract.test.mjs"), join(here, "bridge.test.mjs"), join(here, "adhoc-sign.test.mjs")];
 const r = spawnSync(process.execPath, ["--enable-source-maps", "--test", ...files], { stdio: "inherit" });
 process.exit(r.status ?? 1);

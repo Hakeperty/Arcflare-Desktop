@@ -101,10 +101,17 @@ async function loadModel(id, opts = {}) {
   if (!m) throw new Error(`no model "${id}"`);
   const run = (async () => {
     bus.emit("model:progress", { id, stage: "planning" });
-    const r = await serve.loadModel(cfg(), m, {
-      ctx: opts.ctx,
-      onProgress: (p) => bus.emit("model:progress", { id, ...p }),
-    });
+    let r;
+    try {
+      r = await serve.loadModel(cfg(), m, {
+        ctx: opts.ctx,
+        onProgress: (p) => bus.emit("model:progress", { id, ...p }),
+      });
+    } catch (e) {
+      // The engine's message points at a terminal command; here there's a button.
+      if (e.code === "NO_ENGINE") throw new Error("llama.cpp isn't installed yet. Press “install llama.cpp” on Home (or in Settings), then load the model again.");
+      throw e;
+    }
     if (r.failed) {
       state.loaded = null;
       const e = new Error(r.error || "the model failed to load");
@@ -276,7 +283,8 @@ function logLine(job, line) {
 function cliJob(kind, title, args, meta) {
   const job = newJob(kind, title, meta);
   const child = spawn(process.execPath, [ARCFLARE_BIN, ...args], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NO_COLOR: "1", FORCE_COLOR: "0" },
+    // ARCFLARE_PROGRESS: the CLI reports downloads as "progress <pct> <text>" lines.
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", NO_COLOR: "1", FORCE_COLOR: "0", ARCFLARE_PROGRESS: "1" },
     windowsHide: true,
   });
   job.abort = () => { try { child.kill(); } catch { /* gone */ } };
@@ -284,6 +292,11 @@ function cliJob(kind, title, args, meta) {
     for (const raw of d.toString().split(/\r?\n|\r/)) {
       const line = raw.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").trimEnd();
       if (!line.trim()) continue;
+      const prog = /^progress (\d{1,3}|-)(?: (.*))?$/.exec(line);
+      if (prog) {
+        update(job, { ...(prog[1] === "-" ? {} : { progress: Math.min(100, Number(prog[1])) }), ...(prog[2] ? { stage: prog[2].slice(0, 160) } : {}) });
+        continue;
+      }
       const pct = /(\d{1,3}(?:\.\d+)?)%/.exec(line);
       if (pct) update(job, { progress: Math.min(100, Number(pct[1])) });
       logLine(job, line);
@@ -387,14 +400,34 @@ function genStatus() {
 
 // -------------------------------------------------------------------- hub ----
 
+function freeGbNow() {
+  try { return serve.freeDeviceBytes(cfg()) / 1e9; } catch { return null; }
+}
+
+/** Files of the models on this machine, as lower-case paths, to tell what is already downloaded. */
+function localFiles() {
+  try { return models.discover().map((m) => m.file.replace(/\\/g, "/").toLowerCase()); } catch { return []; }
+}
+
+/** Is `repo` (optionally one quant of it) already on disk? Matches the HF cache layout. */
+function isDownloaded(files, repo, tag) {
+  const dir = `models--${repo.replace("/", "--")}`.toLowerCase();
+  const t = String(tag || "").toLowerCase();
+  return files.some((f) => f.includes(`/${dir}/`) && (!t || f.includes(t)));
+}
+
 async function hubCatalogue(refresh) {
   const c = cfg();
   const r = await hub.load({ cfg: c, refresh: !!refresh });
-  let freeGb = null;
-  try { freeGb = serve.freeDeviceBytes(c) / 1e9; } catch { /* unknown */ }
+  const freeGb = freeGbNow();
+  const files = localFiles();
   return {
     source: r.source, url: r.url, ageText: hub.ageText(r.age), freeGb,
-    models: r.data.models.map((m) => ({ ...m, fit: hub.fit(m, freeGb), plan: hub.installPlan(m) })),
+    models: r.data.models.map((m) => {
+      const plan = hub.installPlan(m);
+      const [repo, tag] = plan.kind === "pull" ? plan.ref.split(":") : [];
+      return { ...m, fit: hub.fit(m, freeGb), plan, installed: plan.kind === "pull" ? isDownloaded(files, repo, tag) : false };
+    }),
   };
 }
 
@@ -402,6 +435,76 @@ function hubInstall(slug, m) {
   const plan = hub.installPlan(m);
   if (plan.kind === "none") throw new Error("this hub entry has no install command yet");
   return cliJob(plan.kind === "pull" ? "download" : "setup", `${plan.kind === "pull" ? "Download" : "Set up"} ${m.name}`, plan.argv, { slug });
+}
+
+// -------------------------------------------------------------------- shop ----
+//
+// The hub is a few dozen picked models. The shop adds all of Hugging Face's
+// GGUF models on top: search them, see each file's real size against the GPU
+// memory that is free, and download the one that fits. Downloads go through
+// `arcflare pull`, so they land where llama.cpp and the CLI look.
+
+const hf = require("arcflare/lib/hf");
+
+const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
+const TAG_RE = /^[\w.-]*$/;
+
+/** How a download of `gb` sits next to the free GPU memory: the hub's thresholds, plus room for the context. */
+function fitGb(gb, freeGb) {
+  if (!freeGb || !gb) return "unknown";
+  const need = gb + 1; // the KV cache and runtime on top of the weights
+  return need <= freeGb * 0.85 ? "fits" : need <= freeGb ? "tight" : "no";
+}
+
+async function shopSearch({ query, sort } = {}) {
+  const results = await hf.search(String(query || ""), { sort, limit: 48 });
+  const files = localFiles();
+  return { freeGb: freeGbNow(), results: results.map((r) => ({ ...r, downloaded: isDownloaded(files, r.repo) })) };
+}
+
+/** One repo: every quant with its size and whether it fits, and what is already downloaded. */
+async function shopRepo(repo) {
+  if (!REPO_RE.test(String(repo))) throw new Error("that isn't a Hugging Face repo name");
+  const info = await hf.repoInfo(repo);
+  const { quants, projectorBytes } = hf.quants(info.siblings || []);
+  const freeGb = freeGbNow();
+  const files = localFiles();
+  const proj = gb(projectorBytes) || 0;
+  const tags = Array.isArray(info.tags) ? info.tags : [];
+  const license = (info.cardData && info.cardData.license) || (tags.find((t) => t.startsWith("license:")) || "").slice(8) || null;
+  return {
+    repo, freeGb, license,
+    gated: !!info.gated,
+    downloads: info.downloads ?? null, likes: info.likes ?? null,
+    task: info.pipeline_tag || null,
+    vision: projectorBytes > 0,
+    quants: quants.map((q) => {
+      const size = gb(q.bytes + projectorBytes);
+      return { tag: q.tag, gb: size, shards: q.shards, fit: fitGb(size, freeGb), downloaded: isDownloaded(files, repo, q.tag) };
+    }),
+    projectorGb: proj,
+  };
+}
+
+function shopDownload(repo, tag) {
+  if (!REPO_RE.test(String(repo)) || !TAG_RE.test(String(tag || ""))) throw new Error("that isn't a model I can download");
+  const ref = tag ? `${repo}:${tag}` : repo;
+  return cliJob("download", `Download ${ref}`, ["pull", ref], { repo, tag: tag || "" });
+}
+
+// ------------------------------------------------------------------ engine ----
+
+/**
+ * Get llama.cpp for this machine, as a job: the CLI's `engine install`, run
+ * out of process (unpacking a few hundred MB must not stall the window). An
+ * engine already present is left alone. One install at a time; asking again
+ * while one runs returns it.
+ */
+function installEngine(want) {
+  const running = [...jobs.values()].find((j) => j.meta && j.meta.engine && j.state === "running");
+  if (running) return publicJob(running);
+  const flag = ["vulkan", "cuda", "cpu", "rocm"].includes(want) ? [`--${want}`] : [];
+  return cliJob("setup", "Install llama.cpp", ["engine", "install", "--if-missing", ...flag], { engine: true });
 }
 
 // --------------------------------------------------------------- harnesses ----
@@ -455,7 +558,7 @@ function shutdown({ stopServer = true } = {}) {
 
 module.exports = {
   bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
-  generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
+  generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall, shopSearch, shopRepo, shopDownload, installEngine,
   harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };
