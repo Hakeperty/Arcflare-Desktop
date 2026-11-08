@@ -21,6 +21,39 @@ const models = require("arcflare/lib/models");
 
 const MAX_TOOL_OUT = 6000;   // characters of a tool result kept for the screen
 const MAX_ITEMS = 600;       // transcript entries kept per session
+const MAX_COMMAND = 20000;   // characters of a command shown on an approval card
+const KIND_LABEL = { bash: "shell commands", write: "file changes", mcp: "MCP calls" };
+
+// Line diffs for write previews; older engines don't have the helper.
+let diffmod = null;
+try { diffmod = require("arcflare/lib/agent/diff"); } catch { /* older engine */ }
+
+/** What an approval card shows: the whole command, a diff, or the call. */
+function preview(kind, detail, call) {
+  if (call && kind === "bash") {
+    const cmd = String(call.command ?? detail ?? "");
+    return { type: "command", text: cmd.slice(0, MAX_COMMAND), more: Math.max(0, cmd.length - MAX_COMMAND), cwd: call.cwd || null };
+  }
+  if (call && kind === "write" && diffmod) {
+    if (call.isNew) {
+      const lines = diffmod.splitLines(call.newText);
+      return {
+        type: "diff", file: call.rel || call.path, isNew: true, del: 0, add: lines.length,
+        rows: [...lines.slice(0, 40).map((t) => ({ sign: "+", text: t })),
+          ...(lines.length > 40 ? [{ sign: "…", text: `${lines.length - 40} more lines` }] : [])],
+      };
+    }
+    const rows = diffmod.lineDiff(call.oldText, call.newText);
+    const { del, add } = diffmod.diffStat(rows);
+    return { type: "diff", file: call.rel || call.path, isNew: false, del, add, rows: diffmod.capRows(rows, 80) };
+  }
+  if (call && kind === "mcp") {
+    let text = "";
+    try { text = JSON.stringify(call.args || {}, null, 2); } catch { text = String(detail); }
+    return { type: "call", name: call.name || "", text: text.slice(0, 8000) };
+  }
+  return { type: "text", text: String(detail ?? "").slice(0, 8000) };
+}
 
 // ------------------------------------------------------------------ stop ----
 //
@@ -127,7 +160,7 @@ module.exports = function createAgents(eng) {
         if (!item) return;
         const out = String(ev.out ?? "");
         item.out = out.length > MAX_TOOL_OUT ? out.slice(0, MAX_TOOL_OUT) + `\n… (${out.length - MAX_TOOL_OUT} more characters)` : out;
-        item.state = out.startsWith("ERROR") ? "error" : "done";
+        item.state = out.startsWith("ERROR") ? "error" : out.startsWith("SKIPPED") ? "skipped" : "done";
         upsert(s, item);
         return;
       }
@@ -148,19 +181,35 @@ module.exports = function createAgents(eng) {
     }
   }
 
-  /** The approver the Agent's tools call: a card in the transcript, answered by buttons. */
+  /**
+   * The approver the Agent's tools call. The question is attached to the tool
+   * card that asked it (the Agent announces a tool, then asks), with the whole
+   * command, the diff a write makes, or the MCP call; buttons answer it.
+   * `call` is the structured tool call from engines that pass one.
+   */
   function approver(s) {
-    return (kind, detail) => {
-      if (s.auto || s.always) return Promise.resolve(true);
+    return (kind, detail, call) => {
+      if (s.auto || s.allowKinds.has(kind)) return Promise.resolve(true);
       if (s.stopping) return Promise.resolve(false);
-      const item = { id: id(), kind: "approval", what: kind, detail: String(detail).slice(0, 4000), state: "pending" };
+      const approval = { id: id(), what: kind, state: "pending", preview: preview(kind, detail, call), canEdit: kind === "bash" && !!diffmod };
+      const tool = [...s.items].reverse().find((x) => x.kind === "tool" && x.state === "running" && !x.approval);
+      let item;
+      if (tool) { tool.approval = approval; item = tool; }
+      else item = { id: approval.id, kind: "approval", what: kind, detail: String(detail).slice(0, 4000), state: "pending", approval };
       upsert(s, item);
-      return new Promise((resolve) => s.pending.set(item.id, { item, resolve }));
+      return new Promise((resolve) => s.pending.set(approval.id, { item, approval, resolve }));
     };
   }
 
+  function settle(s, p, state, value) {
+    p.approval.state = state;
+    if (p.item.kind === "approval") p.item.state = state;
+    upsert(s, p.item);
+    p.resolve(value);
+  }
+
   function settleApprovals(s, allow) {
-    for (const [, p] of s.pending) { p.item.state = allow ? "allowed" : "denied"; upsert(s, p.item); p.resolve(allow); }
+    for (const [, p] of s.pending) settle(s, p, allow ? "allowed" : "denied", allow);
     s.pending.clear();
   }
 
@@ -206,7 +255,7 @@ module.exports = function createAgents(eng) {
     if (existing && (opts.machine === undefined || opts.machine === existing.machine)) return publicSession(existing);
     if (existing) dispose(existing.id);
     const s = {
-      id: id(), folder: dir, machine: opts.machine !== false, auto: false, always: false,
+      id: id(), folder: dir, machine: opts.machine !== false, auto: false, allowKinds: new Set(),
       agent: null, reg: null, items: [], pending: new Map(), notes: [], stopping: false,
       stats: null, modelKey: null, modelName: null,
     };
@@ -293,15 +342,43 @@ module.exports = function createAgents(eng) {
     return true;
   }
 
-  function answer(sessionId, approvalId, allow, always) {
+  /**
+   * An answer from a card. `d` is a decision — { action: allow | deny | skip |
+   * edit, session?, command?, reason? } — or, from older screens, a boolean
+   * with `always` meaning "for this session".
+   */
+  function answer(sessionId, approvalId, d, always) {
     const s = get(sessionId);
     const p = s.pending.get(approvalId);
     if (!p) return false;
     s.pending.delete(approvalId);
-    if (always && allow) s.always = true;
-    p.item.state = allow ? (always ? "allowed for this session" : "allowed") : "denied";
-    upsert(s, p.item);
-    p.resolve(!!allow);
+    const dec = typeof d === "object" && d ? d : { action: d ? "allow" : "deny", session: !!always };
+    const kind = p.approval.what;
+    // An older engine only knows true/false, and would treat any object as "yes": there, skip and edit must be a
+    // plain no, or "skip" would run the command. Engines with structured answers ship lib/agent/diff (diffmod).
+    if (!diffmod && (dec.action === "skip" || dec.action === "edit")) {
+      settle(s, p, "denied", false);
+      return true;
+    }
+    switch (dec.action) {
+      case "allow":
+        if (dec.session) s.allowKinds.add(kind);
+        settle(s, p, dec.session ? `allowed ${KIND_LABEL[kind] || kind} for this session` : "allowed", true);
+        break;
+      case "edit": {
+        const command = String(dec.command || "").trim();
+        if (!command) { settle(s, p, "skipped", { action: "skip" }); break; }
+        p.approval.ran = command;
+        settle(s, p, "edited, then ran", { action: "edit", command });
+        break;
+      }
+      case "skip":
+        p.approval.reason = dec.reason ? String(dec.reason).slice(0, 500) : undefined;
+        settle(s, p, "skipped", { action: "skip", reason: p.approval.reason });
+        break;
+      default:
+        settle(s, p, "denied", false);
+    }
     return true;
   }
 
@@ -318,7 +395,7 @@ module.exports = function createAgents(eng) {
     const s = get(sessionId);
     if (running === s.id) throw new Error("stop the turn first");
     if (s.reg) s.reg.stopAll();
-    s.reg = null; s.agent = null; s.items = []; s.stats = null; s.always = false; s.modelKey = null;
+    s.reg = null; s.agent = null; s.items = []; s.stats = null; s.allowKinds = new Set(); s.modelKey = null;
     pushStatus(s);
     return publicSession(s);
   }

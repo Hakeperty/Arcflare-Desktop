@@ -6,7 +6,8 @@ import { EmptyState } from "../ui/kit";
 import { useEffect, useRef, useState } from "react";
 import {
   agent, api, on,
-  type AgentDeltaEvent, type AgentItem, type AgentItemEvent, type AgentSession, type AgentStatusEvent, type LoadedModel,
+  type AgentApproval, type AgentDecision, type AgentDeltaEvent, type AgentItem, type AgentItemEvent, type AgentPreview,
+  type AgentSession, type AgentStatusEvent, type LoadedModel,
 } from "../lib/api";
 import { Markdown } from "../ui/md";
 import type { View } from "../App";
@@ -183,7 +184,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
           )}
           {session?.items.map((it, i) => (
             <ItemView key={it.id} it={it} live={busy && i === session.items.length - 1}
-              onAnswer={(allow, always) => agent.answer(session.sessionId, it.id, allow, always).catch((e) => setErr((e as Error).message))} />
+              onAnswer={(approvalId, d) => agent.answer(session.sessionId, approvalId, d).catch((e) => setErr((e as Error).message))} />
           ))}
           {err && <div className="err">{err}</div>}
         </div>
@@ -215,7 +216,110 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   );
 }
 
-function ItemView({ it, live, onAnswer }: { it: AgentItem; live: boolean; onAnswer: (allow: boolean, always?: boolean) => void }) {
+type Answer = (approvalId: string, d: AgentDecision) => void;
+
+const KIND_LABEL: Record<string, string> = { bash: "shell commands", write: "file changes", mcp: "MCP calls" };
+const ASK_LABEL: Record<string, string> = { bash: "run this command", write: "make this change", mcp: "call this tool" };
+
+/** The whole command, the diff of a write, or an MCP call, as on the card. */
+function PreviewView({ p }: { p: AgentPreview }) {
+  const box: React.CSSProperties = { marginTop: 8, maxHeight: 320, overflow: "auto", background: "var(--bg)", border: "1px solid var(--border)", padding: "8px 10px", font: "12px/1.5 var(--mono)" };
+  switch (p.type) {
+    case "command":
+      return (
+        <div style={box}>
+          <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--fg)" }}>{p.text}</div>
+          {p.more > 0 && <div className="dim">… {p.more} more characters</div>}
+          {p.cwd && <div className="dim" style={{ marginTop: 4 }}>in {p.cwd}</div>}
+        </div>
+      );
+    case "diff":
+      return (
+        <div style={box}>
+          <div style={{ marginBottom: 4 }}>
+            <b>{p.file}</b>{" "}
+            {p.isNew
+              ? <span className="dim">new file · {p.add} lines</span>
+              : <span><span style={{ color: "#f87171" }}>-{p.del}</span> <span style={{ color: "var(--accent-2, #2dd4bf)" }}>+{p.add}</span></span>}
+          </div>
+          {p.rows.map((r, i) => (
+            <div key={i} style={{
+              whiteSpace: "pre-wrap", wordBreak: "break-all",
+              color: r.sign === "-" ? "#f87171" : r.sign === "+" ? "var(--accent-2, #2dd4bf)" : "var(--muted)",
+              background: r.sign === "-" ? "rgba(248,113,113,.08)" : r.sign === "+" ? "rgba(45,212,191,.08)" : "transparent",
+            }}>{r.sign === "…" ? `… ${r.text}` : `${r.sign} ${r.text}`}</div>
+          ))}
+        </div>
+      );
+    case "call":
+      return <div style={box}><b>{p.name}</b><div className="dim" style={{ whiteSpace: "pre-wrap" }}>{p.text}</div></div>;
+    default:
+      return <div style={{ ...box, whiteSpace: "pre-wrap" }}>{p.text}</div>;
+  }
+}
+
+/** The question on a tool card: preview plus allow / allow kind / edit / skip / deny. */
+function ApprovalPanel({ a, onAnswer }: { a: AgentApproval; onAnswer: Answer }) {
+  const [editing, setEditing] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+  const [cmd, setCmd] = useState(a.preview?.type === "command" ? a.preview.text : "");
+  const [reason, setReason] = useState("");
+  const pending = a.state === "pending";
+  const kindLabel = KIND_LABEL[a.what] || a.what;
+  const skip = () => onAnswer(a.id, { action: "skip", reason: reason.trim() || undefined });
+  return (
+    <div style={{ borderTop: "1px solid var(--border)", borderLeft: pending ? "2px solid var(--accent)" : "2px solid transparent", background: pending ? "var(--accent-soft)" : "transparent", padding: pending ? "10px 12px" : "6px 12px" }}>
+      {pending && (
+        <div className="row" style={{ gap: 8 }}>
+          <span style={{ color: "var(--accent)" }} className="mono">?</span>
+          <span>Allow the agent to {ASK_LABEL[a.what] || `run ${a.what}`}?</span>
+        </div>
+      )}
+      {pending && !editing && a.preview && <PreviewView p={a.preview} />}
+      {pending && editing && (
+        <textarea className="textarea" style={{ width: "100%", marginTop: 8, font: "12px/1.5 var(--mono)" }}
+          rows={Math.min(10, Math.max(3, cmd.split("\n").length + 1))} value={cmd} autoFocus
+          onChange={(e) => setCmd(e.target.value)} />
+      )}
+      {pending && skipping && (
+        <input className="input" style={{ width: "100%", marginTop: 8 }} placeholder="why skip it? (optional; the agent sees this)"
+          value={reason} autoFocus onChange={(e) => setReason(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") skip(); }} />
+      )}
+      {pending ? (
+        <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          {editing ? (
+            <>
+              <button className="btn primary sm" disabled={!cmd.trim()} onClick={() => onAnswer(a.id, { action: "edit", command: cmd })}>run edited</button>
+              <button className="btn sm" onClick={() => setEditing(false)}>cancel</button>
+            </>
+          ) : skipping ? (
+            <>
+              <button className="btn primary sm" onClick={skip}>skip it</button>
+              <button className="btn sm" onClick={() => setSkipping(false)}>cancel</button>
+            </>
+          ) : (
+            <>
+              <button className="btn primary sm" onClick={() => onAnswer(a.id, { action: "allow" })}>allow</button>
+              <button className="btn sm" onClick={() => onAnswer(a.id, { action: "allow", session: true })}>allow {kindLabel} this session</button>
+              {a.canEdit && <button className="btn sm" onClick={() => setEditing(true)}>edit</button>}
+              <button className="btn sm" title="Don't run it; the agent carries on without it" onClick={() => setSkipping(true)}>skip</button>
+              <button className="btn danger sm" onClick={() => onAnswer(a.id, { action: "deny" })}>deny</button>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span className={`chip ${a.state === "denied" ? "bad" : a.state === "skipped" ? "" : "ok"}`}>{a.state}</span>
+          {a.ran && <span className="dim mono truncate" style={{ fontSize: 11 }}>ran: {a.ran}</span>}
+          {a.reason && <span className="dim" style={{ fontSize: 11 }}>“{a.reason}”</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemView({ it, live, onAnswer }: { it: AgentItem; live: boolean; onAnswer: Answer }) {
   const [open, setOpen] = useState(false);
   switch (it.kind) {
     case "user":
@@ -238,13 +342,14 @@ function ItemView({ it, live, onAnswer }: { it: AgentItem; live: boolean; onAnsw
       );
     case "tool":
       return (
-        <div className="agent-tool">
+        <div className="agent-tool" style={it.approval?.state === "pending" ? { borderColor: "var(--accent)" } : undefined}>
           <button className="agent-tool-h" onClick={() => setOpen((v) => !v)}>
-            <span className={`led ${it.state === "running" ? "busy" : it.state === "error" ? "err" : "on"}`} />
+            <span className={`led ${it.state === "running" ? "busy" : it.state === "error" ? "err" : it.state === "skipped" ? "off" : "on"}`} />
             <span style={{ color: "var(--accent)" }}>{it.name}</span>
             <span className="dim truncate grow" style={{ textAlign: "left" }}>{it.detail}</span>
             <span className="dim">{open ? "▾" : "▸"}</span>
           </button>
+          {it.approval && <ApprovalPanel a={it.approval} onAnswer={onAnswer} />}
           {open && (
             <div style={{ padding: "0 10px 10px" }}>
               {it.args && it.args !== "{}" && <div className="log" style={{ maxHeight: 160 }}>{it.args}</div>}
@@ -259,24 +364,10 @@ function ItemView({ it, live, onAnswer }: { it: AgentItem; live: boolean; onAnsw
         </div>
       );
     case "approval":
-      return (
-        <div className="agent-approval">
-          <div className="row" style={{ gap: 8 }}>
-            <span style={{ color: "var(--accent)" }} className="mono">?</span>
-            <span>The agent wants to run <b>{it.what}</b>:</span>
-          </div>
-          <div className="log" style={{ marginTop: 8, maxHeight: 200, color: "var(--fg)" }}>{it.detail}</div>
-          {it.state === "pending" ? (
-            <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-              <button className="btn primary sm" onClick={() => onAnswer(true)}>allow</button>
-              <button className="btn sm" onClick={() => onAnswer(true, true)}>allow for this session</button>
-              <button className="btn danger sm" onClick={() => onAnswer(false)}>deny</button>
-            </div>
-          ) : (
-            <div className={`chip ${it.state === "denied" ? "bad" : "ok"}`} style={{ marginTop: 8 }}>{it.state}</div>
-          )}
-        </div>
-      );
+      // A question with no tool card to sit on (older engines).
+      return it.approval
+        ? <div className="agent-tool" style={{ borderColor: "var(--accent)" }}><ApprovalPanel a={it.approval} onAnswer={onAnswer} /></div>
+        : <div className="agent-approval"><div className="log">{it.detail}</div><div className="chip">{it.state}</div></div>;
     case "note":
       return <div className="dim mono" style={{ fontSize: 11, textAlign: "center" }}>— {it.text} —</div>;
     case "error":

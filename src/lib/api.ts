@@ -227,11 +227,31 @@ export const updates = {
 
 // ----------------------------------------------------------------- agent ----
 
+/** What an approval card shows. */
+export type AgentPreview =
+  | { type: "command"; text: string; more: number; cwd: string | null }
+  | { type: "diff"; file: string; isNew: boolean; del: number; add: number; rows: { sign: string; text: string }[] }
+  | { type: "call"; name: string; text: string }
+  | { type: "text"; text: string };
+
+/** A question the agent is asking (or asked): attached to its tool card. */
+export type AgentApproval = {
+  id: string; what: string; state: string; preview?: AgentPreview; canEdit?: boolean;
+  ran?: string; reason?: string;
+};
+
+/** How a card is answered. `session` allows this kind for the rest of the session. */
+export type AgentDecision =
+  | { action: "allow"; session?: boolean }
+  | { action: "deny" }
+  | { action: "skip"; reason?: string }
+  | { action: "edit"; command: string };
+
 export type AgentItem =
   | { id: string; kind: "user"; text: string }
   | { id: string; kind: "assistant"; content: string; reasoning: string; done: boolean }
-  | { id: string; kind: "tool"; name: string; detail: string; args: string; out: string | null; state: "running" | "done" | "error" }
-  | { id: string; kind: "approval"; what: string; detail: string; state: string }
+  | { id: string; kind: "tool"; name: string; detail: string; args: string; out: string | null; state: "running" | "done" | "error" | "skipped"; approval?: AgentApproval }
+  | { id: string; kind: "approval"; what: string; detail: string; state: string; approval?: AgentApproval }
   | { id: string; kind: "note"; text: string }
   | { id: string; kind: "error"; text: string };
 
@@ -253,7 +273,7 @@ export const agent = {
   state: (id: string) => call<AgentSession>("agent:state", id),
   send: (id: string, text: string) => call<{ ok: boolean; stats: AgentStats | null }>("agent:send", id, text),
   stop: (id: string) => call<boolean>("agent:stop", id),
-  answer: (id: string, approvalId: string, allow: boolean, always = false) => call<boolean>("agent:answer", id, approvalId, allow, always),
+  answer: (id: string, approvalId: string, d: AgentDecision) => call<boolean>("agent:answer", id, approvalId, d),
   auto: (id: string, on: boolean) => call<boolean>("agent:auto", id, on),
   clear: (id: string) => call<AgentSession>("agent:clear", id),
   close: (id: string) => call<void>("agent:close", id),
