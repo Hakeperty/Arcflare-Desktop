@@ -48,7 +48,8 @@
     "files": [
       "electron/**",
       "dist/**",
-      "package.json"
+      "package.json",
+      "LICENSE"
     ],
     "asarUnpack": [
       "node_modules/arcflare/**"
