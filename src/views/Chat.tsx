@@ -1,12 +1,13 @@
 // Chat with the model on your GPU. Conversations are kept in this window's
 // storage; the model, the prompt and the replies never leave the machine.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { api, on, rc, uid, type ChatMessage, type LoadedModel, type LocalModel, type ModelProgress, type RcStatus, type RcTurnEvent } from "../lib/api";
 import { Markdown } from "../ui/md";
 import { Progress, fmtCtx, EmptyState } from "../ui/kit";
 import { progressText, type View } from "../App";
 import { Term } from "../ui/Term";
+import { createBatcher, createSpeedMeter } from "../lib/stream";
 
 type Turn = ChatMessage & { id: string; reasoning?: string; tokPerSec?: number | null; error?: string };
 type Convo = { id: string; title: string; system: string; turns: Turn[]; created: number };
@@ -40,23 +41,44 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
   const stick = useRef(true);
 
   const convo = convos.find((c) => c.id === activeId) || convos[0];
-  useEffect(() => saveConvos(convos), [convos]);
+  // Saving writes every conversation to storage. While a reply streams the state changes many times a
+  // second, so the save waits for a quiet moment (and runs at once when the window closes or the view goes).
+  const latest = useRef(convos);
+  latest.current = convos;
+  useEffect(() => {
+    const t = setTimeout(() => saveConvos(convos), busy ? 1500 : 250);
+    return () => clearTimeout(t);
+  }, [convos, busy]);
+  useEffect(() => {
+    const now = () => saveConvos(latest.current);
+    window.addEventListener("beforeunload", now);
+    return () => { window.removeEventListener("beforeunload", now); now(); };
+  }, []);
   useEffect(() => { api.models().then((m) => { setModels(m); if (!pick && m[0]) setPick(m[0].id); }).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (loaded) setPick(loaded.id); }, [loaded]);
 
   const patch = (id: string, fn: (c: Convo) => Convo) => setConvos((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
 
   // Stream deltas into the last assistant turn of the conversation that asked.
+  // Deltas are collected and applied once per frame, not once per token.
   const streaming = useRef<{ requestId: string; convoId: string; turnId: string } | null>(null);
+  const meter = useRef(createSpeedMeter());
+  const [liveRate, setLiveRate] = useState<{ tps: number | null; tokens: number } | null>(null);
+  const batch = useRef(createBatcher((b) => {
+    const s = streaming.current;
+    if (!s) return;
+    patch(s.convoId, (c) => ({
+      ...c,
+      turns: c.turns.map((t) => (t.id !== s.turnId ? t
+        : { ...t, reasoning: b.reasoning ? (t.reasoning || "") + b.reasoning : t.reasoning, content: t.content + b.content })),
+    }));
+    setLiveRate({ tps: meter.current.rate(), tokens: meter.current.count() });
+  }));
   useEffect(() => on("chat:delta", (d: { requestId: string; kind: string; text: string }) => {
     const s = streaming.current;
     if (!s || d.requestId !== s.requestId) return;
-    patch(s.convoId, (c) => ({
-      ...c,
-      turns: c.turns.map((t) => (t.id !== s.turnId ? t : d.kind === "reasoning"
-        ? { ...t, reasoning: (t.reasoning || "") + d.text }
-        : { ...t, content: t.content + d.text })),
-    }));
+    meter.current.tick();
+    batch.current.push(d.kind, d.text);
   }), []);
 
   useEffect(() => {
@@ -76,6 +98,8 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
     setInput("");
     const requestId = uid();
     streaming.current = { requestId, convoId: convo.id, turnId: reply.id };
+    meter.current.reset();
+    setLiveRate(null);
     stick.current = true;
     setBusy(requestId);
     const messages: ChatMessage[] = [
@@ -84,12 +108,15 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
     ];
     try {
       const r = await api.chat(requestId, { messages });
+      batch.current.cancel(); // r.text is the whole reply; a late frame must not add its tail twice
       patch(convo.id, (c) => ({ ...c, turns: c.turns.map((t) => (t.id === reply.id ? { ...t, content: r.text || t.content, tokPerSec: r.tokPerSec } : t)) }));
     } catch (e) {
       const msg = (e as Error).message;
+      batch.current.flush(); // keep what had arrived
       patch(convo.id, (c) => ({ ...c, turns: c.turns.map((t) => (t.id === reply.id ? { ...t, error: msg === "stopped" ? undefined : msg } : t)) }));
     } finally {
       streaming.current = null;
+      setLiveRate(null);
       setBusy(null);
     }
   }
@@ -188,7 +215,10 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
                       Download one that fits your GPU from the hub.
                     </EmptyState>
             )}
-            {convo.turns.map((t) => <TurnView key={t.id} t={t} streaming={busy !== null && t === convo.turns[convo.turns.length - 1]} />)}
+            {convo.turns.map((t, i) => {
+              const live = busy !== null && i === convo.turns.length - 1;
+              return <TurnView key={t.id} t={t} streaming={live} rate={live ? liveRate : null} />;
+            })}
           </div>
         </div>
 
@@ -211,7 +241,10 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
   );
 }
 
-function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
+// Memoised: while one reply streams, the turns above it are the same objects and are not rendered again.
+const TurnView = memo(function TurnView({ t, streaming, rate }: {
+  t: Turn; streaming: boolean; rate?: { tps: number | null; tokens: number } | null;
+}) {
   const [open, setOpen] = useState(false);
   if (t.role === "user") {
     return (
@@ -228,12 +261,19 @@ function TurnView({ t, streaming }: { t: Turn; streaming: boolean }) {
           {open && <div className="log" style={{ maxHeight: 260, marginTop: 4 }}>{t.reasoning}</div>}
         </div>
       )}
-      {t.content ? <Markdown text={t.content} /> : streaming && !t.reasoning ? <span className="led busy" /> : null}
+      {t.content
+        ? <div className={streaming ? "md-live" : undefined}><Markdown text={t.content} /></div>
+        : streaming && !t.reasoning ? <span className="led busy" /> : null}
       {t.error && <div className="err">{t.error}</div>}
-      {t.tokPerSec != null && <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>{t.tokPerSec} <Term k="toks">tok/s</Term></div>}
+      {streaming && rate && rate.tokens > 0 && (
+        <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>
+          {rate.tps != null ? <>{rate.tps} <Term k="toks">tok/s</Term> · </> : null}{rate.tokens} tokens
+        </div>
+      )}
+      {!streaming && t.tokPerSec != null && <div className="dim mono" style={{ fontSize: 11, marginTop: 4 }}>{t.tokPerSec} <Term k="toks">tok/s</Term></div>}
     </div>
   );
-}
+});
 
 /**
  * The phone's conversation. It lives in the main process (so the phone works
@@ -247,16 +287,21 @@ function PhoneConversation({ remote, loaded, openPhone }: { remote: RcStatus | n
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let current = "";
+    const batch = createBatcher((b) => {
+      const id = current;
+      setLive((l) => (!l || l.requestId !== id ? l : { ...l, reasoning: l.reasoning + b.reasoning, content: l.content + b.content }));
+    });
     const offTurn = on("rc:turn", (t: RcTurnEvent) => {
-      if (t.phase === "start") setLive({ requestId: t.requestId, reasoning: "", content: "" });
+      batch.cancel();
+      if (t.phase === "start") { current = t.requestId; setLive({ requestId: t.requestId, reasoning: "", content: "" }); }
       else setLive((l) => (l && l.requestId === t.requestId ? null : l));
       if (t.phase === "error" && t.error !== "stopped") setErr(t.error);
     });
     const offDelta = on("chat:delta", (d: { requestId: string; kind: string; text: string }) => {
-      setLive((l) => (!l || l.requestId !== d.requestId ? l
-        : d.kind === "reasoning" ? { ...l, reasoning: l.reasoning + d.text } : { ...l, content: l.content + d.text }));
+      if (d.requestId === current) batch.push(d.kind, d.text);
     });
-    return () => { offTurn(); offDelta(); };
+    return () => { offTurn(); offDelta(); batch.cancel(); };
   }, []);
 
   const history = remote?.history ?? [];
