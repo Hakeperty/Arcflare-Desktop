@@ -309,7 +309,10 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 /* Home banner. */
 .banner { position: relative; overflow: hidden; border: 1px solid var(--border); background: var(--surface); padding: 22px 24px; margin-bottom: 16px; }
 .banner-art { position: absolute; inset: 0 0 0 auto; width: 55%; height: 100%; opacity: .55;
-  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent); mask-image: linear-gradient(to left, #000 35%, transparent); }
+  /* Faint behind the panda on the right, full in the middle, gone by the text: the pattern is the
+     backdrop and the line art in front of it stays readable. */
+  -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 30%, #000 52%, transparent);
+  mask-image: linear-gradient(to left, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 30%, #000 52%, transparent); }
 .banner > :not(.banner-art) { position: relative; }
 
 /* Model rows. */

@@ -7,6 +7,7 @@ import { Markdown } from "../ui/md";
 import { Progress, fmtCtx, EmptyState, pressable } from "../ui/kit";
 import { progressText, type View } from "../App";
 import { Term } from "../ui/Term";
+import { startersFor } from "../lib/starters";
 
 type Turn = ChatMessage & { id: string; reasoning?: string; tokPerSec?: number | null; error?: string };
 type Convo = { id: string; title: string; system: string; turns: Turn[]; created: number };
@@ -21,14 +22,6 @@ function saveConvos(c: Convo[]) {
   try { localStorage.setItem(STORE, JSON.stringify(c.slice(0, 100))); } catch { /* storage full or blocked */ }
 }
 const newConvo = (): Convo => ({ id: uid(), title: "New chat", system: DEFAULT_SYSTEM, turns: [], created: Date.now() });
-
-// A first question, for when you have a model and no idea what to ask it.
-const STARTERS = [
-  "Explain what a context window is, like I'm new to this",
-  "Write a Python script that renames my photos by date",
-  "Give me three dinner ideas from eggs, rice and spinach",
-  "What are you good at, and what should I not trust you with?",
-];
 
 export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhone }: {
   /** False while another screen is showing (this one stays mounted, hidden). */
@@ -191,7 +184,7 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
             {convo.turns.length === 0 && (
               loaded
                 ? <EmptyState seed={`chat-${loaded.id}`} title={`Ask ${loaded.name} anything`}
-                    prompts={STARTERS} onPrompt={(t) => { if (busy === null) void send(t); }}>
+                    prompts={startersFor(loaded.id)} onPrompt={(t) => (t.endsWith(":") ? setInput(t + "\n") : busy === null ? void send(t) : undefined)}>
                     It runs on this computer. Nothing you type is sent anywhere.
                   </EmptyState>
                 : models.length
