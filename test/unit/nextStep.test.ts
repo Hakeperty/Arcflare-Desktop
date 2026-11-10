@@ -20,19 +20,12 @@ test("no model loaded: points at models, with the free memory when it is known",
   assert.equal(nextStep({ ...base, info: { ...info, gpu: { freeGb: null, totalGb: null } } })!.view, "models");
 });
 
-test("a loaded model: go and chat", () => {
-  const s = nextStep({ ...base, loaded })!;
-  assert.equal(s.view, "chat");
-  assert.match(s.text, /Qwen3/);
-});
-
-test("a running job comes first, with its progress as a percentage", () => {
-  const s = nextStep({ ...base, loaded, jobs: [job("done"), job("running", { progress: 62 })] })!;
-  assert.equal(s.view, "jobs");
-  assert.match(s.text, /Download gemma3 62%/);
+test("a loaded model, or a job still running, needs no comment", () => {
+  assert.equal(nextStep({ ...base, loaded }), null);
+  assert.equal(nextStep({ ...base, loaded, jobs: [job("running", { progress: 62 })] }), null);
 });
 
 test("only the newest job's failure is news", () => {
   assert.equal(nextStep({ ...base, loaded, jobs: [job("failed"), job("done")] })!.view, "jobs");
-  assert.equal(nextStep({ ...base, loaded, jobs: [job("done"), job("failed")] })!.view, "chat");
+  assert.equal(nextStep({ ...base, loaded, jobs: [job("done"), job("failed")] }), null);
 });

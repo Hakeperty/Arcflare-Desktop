@@ -58,7 +58,7 @@ export function Welcome({ info, onRefresh, onClose, go }: {
     <div className="modal-back welcome-back">
       <div className="welcome" role="dialog" aria-label="Set up ArcFlare">
         <aside className="welcome-rail">
-          <Mascot mood={step === "model" ? "search" : "hello"} size={104} className="welcome-panda" />
+          <Mascot mood={step === "hello" ? "hello" : "search"} size={104} className="welcome-panda" />
           <DotArt seed="arcflare-welcome" cols={22} rows={3} className="welcome-art" />
           <div className="welcome-brand">arc<b>flare</b></div>
           <div className="dim" style={{ fontSize: 12, marginBottom: 18 }}>set up in four steps</div>

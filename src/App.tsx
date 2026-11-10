@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInfo } from "./lib/api";
-import { Mascot, useJobs } from "./ui/kit";
+import { useJobs } from "./ui/kit";
 import { Home } from "./views/Home";
 import { Chat } from "./views/Chat";
 import { Agent } from "./views/Agent";
@@ -81,7 +81,6 @@ export function App() {
   return (
     <div className="app">
       <header className={`titlebar${mac ? " mac" : ""}`}>
-        <Mascot size={22} />
         <span className="brand">arc<b>flare</b></span>
         <span>{"//"} {view}</span>
         <span className="grow" />
