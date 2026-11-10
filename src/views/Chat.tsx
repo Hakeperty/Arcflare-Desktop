@@ -210,7 +210,7 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
               {busy
                 ? <button className="btn danger" onClick={() => api.stopChat(busy)}>stop</button>
                 : <button className="btn primary" onClick={() => send(input)} disabled={!input.trim()}>send</button>}
-              <button className="btn sm ghost" onClick={regenerate} disabled={!!busy || convo.turns.length === 0}>retry</button>
+              {convo.turns.length > 0 && <button className="btn sm ghost" title="Ask the last question again" onClick={regenerate} disabled={!!busy}>retry</button>}
             </div>
           </div>
         </div>

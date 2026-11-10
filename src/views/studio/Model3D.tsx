@@ -378,7 +378,7 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
         <div className="row" style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", gap: 6 }}>
           <button className={`btn sm${tool === "select" ? " on" : ""}`} onClick={() => setTool("select")} title="S">select</button>
           <button className={`btn sm${tool === "orbit" ? " on" : ""}`} onClick={() => setTool("orbit")} title="S">orbit</button>
-          <span className="dim mono truncate grow" style={{ fontSize: 11 }}>{tool === "select" ? "drag paints · shift adds · alt removes · right-drag orbits" : "drag to orbit · right-drag pans"}</span>
+          <span className="dim mono truncate grow" style={{ fontSize: 11 }}>{tool === "select" ? "drag paints · shift adds · alt removes" : "drag to orbit · right-drag pans"}</span>
           <button className={`btn sm${wire ? " on" : ""}`} onClick={() => { setWire(!wire); viewer.current?.setWireframe(!wire); }}>wire</button>
           <button className="btn sm" onClick={() => viewer.current?.frame()} title="F">frame</button>
         </div>

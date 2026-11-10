@@ -110,7 +110,7 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
       {jobs.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <Panel title="recent jobs" className="" right={<button className="btn ghost sm" onClick={() => go("jobs")}>all</button>}>
-            <div className="col">{jobs.slice(0, 4).map((j) => <JobStatus key={j.id} job={j} />)}</div>
+            <div className="col">{jobs.slice(0, 3).map((j) => <JobStatus key={j.id} job={j} />)}</div>
           </Panel>
         </div>
       )}
