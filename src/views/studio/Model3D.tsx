@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { api, fileUrl, type GenModel, type ImageModels, type LoadedModel, type StudioFile } from "../../lib/api";
-import { Field, JobStatus, useJob } from "../../ui/kit";
+import { Field, JobStatus, Mascot, useJob } from "../../ui/kit";
 import { Viewer } from "../../three/viewer";
 import {
   OP_SIGNATURES, apply, brush, clearSelection, describe, growSelection, hasSelection, needsSelection,
@@ -390,7 +390,11 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
           onContextMenu={(e) => e.preventDefault()} />
         {!meshPath && (
           <div style={{ position: "absolute", inset: "40px 0 0 0", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-            <div className="empty" style={{ background: "var(--bg)" }}>Generate a model, or open a .glb, to start.</div>
+            <div className="empty col" style={{ background: "var(--bg)", alignItems: "center", gap: 10, padding: "20px 28px" }}>
+              <Mascot mood="search" size={76} className="center" />
+              <div><b style={{ color: "var(--fg)" }}>No model on the table yet</b></div>
+              <div>Make one from a photo or a sentence on the left, or open a .glb you already have.</div>
+            </div>
           </div>
         )}
         <div className="row mono dim" style={{ padding: "4px 10px", borderTop: "1px solid var(--border)", fontSize: 11 }}>
@@ -428,6 +432,8 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
           {loaded ? <>Instructions are planned by <b>{loaded.name}</b>.</> : <>No chat model loaded: simple keywords only. Load one for richer edits.</>}
         </div>
 
+        {/* Nothing to edit until there is a model: the buttons say so instead of doing nothing. */}
+        <fieldset className="plain" disabled={!meshPath} title={meshPath ? undefined : "Generate or open a model first"}>
         <div className="label" style={{ marginTop: 6 }}>quick edits</div>
         <div className="grid2" style={{ gap: 6 }}>
           <button className="btn sm" onClick={() => runOps([{ op: "scale", factor: 1.15 }], "button")}>bigger</button>
@@ -446,10 +452,11 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
           </label>
           <button className="btn sm danger" onClick={() => runOps([{ op: "delete" }], "button")}>delete</button>
         </div>
+        </fieldset>
 
         <div className="row" style={{ marginTop: 6 }}>
-          <button className="btn sm" onClick={doUndo} title="Ctrl+Z">undo</button>
-          <button className="btn sm" onClick={doRedo} title="Ctrl+Y">redo</button>
+          <button className="btn sm" disabled={!meshPath} onClick={doUndo} title="Ctrl+Z">undo</button>
+          <button className="btn sm" disabled={!meshPath} onClick={doRedo} title="Ctrl+Y">redo</button>
           <span className="grow" />
           <button className="btn sm primary" disabled={!meshPath} title={meshPath ? "Save the edited model" : "Generate or open a model first"} onClick={saveGlb}>save .glb</button>
         </div>

@@ -123,7 +123,10 @@ textarea, input, .selectable { user-select: text; }
   font: 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; white-space: nowrap;
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.btn:disabled { opacity: .4; cursor: default; }
+.btn:disabled, fieldset:disabled .btn { opacity: .4; cursor: default; pointer-events: none; }
+/* A fieldset used only to switch a group of controls off together. */
+fieldset.plain { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.mascot.center { align-self: center; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0b0a; font-weight: 600; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-bright); color: #0b0b0a; }
 /* Dimming amber leaves dark text on brown; a disabled action is a quiet outline instead. */

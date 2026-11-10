@@ -107,7 +107,8 @@ export function FlowTab({ handoff, loaded, active }: { handoff: Handoff; loaded:
     const y0 = Math.min(...nodes.map((n) => n.y)), y1 = Math.max(...nodes.map((n) => n.y + height(n)));
     const pad = 28;
     const z = Math.min(1, Math.max(0.35, Math.min((w - pad * 2) / (x1 - x0), (h - pad * 2) / (y1 - y0))));
-    setView({ z, x: pad - x0 * z, y: pad - y0 * z });
+    // Centred, so a short row of nodes doesn't sit against the top of an empty canvas.
+    setView({ z, x: (w - (x1 - x0) * z) / 2 - x0 * z, y: Math.max(pad, (h - (y1 - y0) * z) / 2) - y0 * z });
   }
   // The first time the canvas has a size (the tab mounts hidden), show the whole flow.
   const fitted = useRef(false);
