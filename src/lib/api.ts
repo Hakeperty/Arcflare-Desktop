@@ -102,6 +102,8 @@ export type Job = {
   error: string | null;
   stderr?: string[] | null;
   started: number;
+  /** When it stopped running (done, failed or cancelled); null while it runs. */
+  ended?: number | null;
 };
 
 export type ImageModels = { sd: string | null; models: { path: string; name: string; sizeGb: number }[] };

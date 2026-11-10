@@ -1,7 +1,8 @@
 // Running a flow: each node in topological order, outputs passed along edges,
 // slow work done as engine jobs and waited on through "job:update" events.
 
-import { api, on, uid, type Job, type LoadedModel } from "../lib/api";
+import { api, uid, type Job, type LoadedModel } from "../lib/api";
+import { waitForJob } from "../lib/jobs";
 import { downstream, inputEdge, PORTS, topoSort, type FlowNode, type Graph, type PortType } from "./graph";
 
 /** What travels along an edge: text, or the path of a file the engine wrote. */
@@ -22,21 +23,6 @@ export type RunHooks = {
   /** The stop button: true once the person asked to stop. */
   stopped: () => boolean;
 };
-
-/** Resolve with the job's result file once it is done; reject on failure. */
-export function waitForJob(jobId: string, onUpdate?: (j: Job) => void): Promise<Job> {
-  return new Promise((resolve, reject) => {
-    const off = on("job:update", (j: Job) => {
-      if (j.id !== jobId) return;
-      if (onUpdate) onUpdate(j);
-      if (j.state === "done") { off(); resolve(j); }
-      else if (j.state === "failed" || j.state === "cancelled") {
-        off();
-        reject(new Error(j.state === "cancelled" ? "cancelled" : j.error || "the job failed"));
-      }
-    });
-  });
-}
 
 function num(v: unknown, d: number): number {
   const n = Number(v);

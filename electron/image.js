@@ -157,7 +157,9 @@ async function comfyStatus(base) {
 async function comfyRun(base, workflowFile, vars, out, { onEvent = () => {}, signal } = {}) {
   let text = fs.readFileSync(workflowFile, "utf8");
   for (const [k, v] of Object.entries(vars)) {
-    text = text.split(`{{${k}}}`).join(String(v ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"'));
+    // The placeholder sits inside a JSON string: escape everything JSON does
+    // (quotes and backslashes, but also the newlines of a multi-line prompt).
+    text = text.split(`{{${k}}}`).join(JSON.stringify(String(v ?? "")).slice(1, -1));
   }
   const workflow = JSON.parse(text);
   const queued = JSON.parse((await comfyRequest(base, "POST", "/prompt", { prompt: workflow })).buf.toString());
