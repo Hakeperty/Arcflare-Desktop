@@ -99,9 +99,11 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
       </div>
 
       {jobs.length > 0 && (
-        <Panel title="recent jobs" className="" right={<button className="btn ghost sm" onClick={() => go("jobs")}>all</button>}>
-          <div className="col">{jobs.slice(0, 4).map((j) => <JobStatus key={j.id} job={j} />)}</div>
-        </Panel>
+        <div style={{ marginTop: 16 }}>
+          <Panel title="recent jobs" className="" right={<button className="btn ghost sm" onClick={() => go("jobs")}>all</button>}>
+            <div className="col">{jobs.slice(0, 4).map((j) => <JobStatus key={j.id} job={j} />)}</div>
+          </Panel>
+        </div>
       )}
     </div>
   );

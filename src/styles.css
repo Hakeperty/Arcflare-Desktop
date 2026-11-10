@@ -10,7 +10,7 @@
   --surface-3: #222220;
   --fg: #edeae2;
   --muted: #a09d93;
-  --muted-2: #8a877e;
+  --muted-2: #98958b;
   --border: #2a2a27;
   --border-strong: #44443f;
   --accent: #ffb020;
@@ -70,10 +70,10 @@ textarea, input, .selectable { user-select: text; }
 }
 .nav:hover { color: var(--fg); background: var(--surface); }
 .nav.on { color: var(--fg); border-color: var(--border); background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); }
-.nav .k { margin-left: auto; font-size: 10px; color: var(--muted-2); }
+.nav .k { margin-left: auto; font-size: 11px; color: var(--muted-2); }
 /* A count in a nav row must not make the row taller than its neighbours. */
 .nav .chip { padding: 0 6px; font-size: 10px; line-height: 14px; }
-.nav-group { margin: 14px 10px 4px; font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
+.nav-group { margin: 14px 10px 4px; font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
 
 .main { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .page { flex: 1; overflow-y: auto; padding: 22px 26px 40px; }
@@ -141,7 +141,7 @@ textarea, input, .selectable { user-select: text; }
 .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
 .textarea { resize: vertical; min-height: 64px; font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .field { display: flex; flex-direction: column; gap: 5px; }
-.field > span { font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
+.field > span { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
 
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 14px; background: var(--bg); flex: none; }
 .tab {
@@ -267,7 +267,7 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 .meter.ok > i { background: var(--accent-2); }
 .meter.warn > i { background: var(--accent); }
 .meter.bad > i { background: var(--danger); }
-.meter-label { font: 10.5px var(--mono); color: var(--muted-2); margin-top: 4px; }
+.meter-label { font: 11px var(--mono); color: var(--muted-2); margin-top: 4px; }
 
 /* Home banner. */
 .banner { position: relative; overflow: hidden; border: 1px solid var(--border); background: var(--surface); padding: 22px 24px; margin-bottom: 16px; }
