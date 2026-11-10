@@ -86,11 +86,21 @@ function gitBranch(dir) {
 }
 
 /** The machine server, started through this same executable in Node mode. */
-function machineServer() {
+function machineServer(parts = null) {
   let bin = require.resolve("arcflare/bin/arcflare-mcp.js");
   const unpacked = bin.replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
   if (unpacked !== bin && fs.existsSync(unpacked)) bin = unpacked;
-  return { command: process.execPath, args: [bin], env: { ELECTRON_RUN_AS_NODE: "1" } };
+  return { command: process.execPath, args: [bin, ...(parts ? ["--only", parts.join(",")] : [])], env: { ELECTRON_RUN_AS_NODE: "1" } };
+}
+
+/**
+ * Which parts of ArcFlare's server a session gets, from its three switches:
+ * null for all of it, a list for some, [] for none. An engine from before the
+ * switches existed knows only the first one.
+ */
+function serverParts(s) {
+  if (typeof run.serverParts === "function") return run.serverParts({ machine: s.machine, desktop: s.desktop, web: s.web });
+  return s.machine ? null : [];
 }
 
 function summarize(args) {
@@ -113,7 +123,9 @@ module.exports = function createAgents(eng) {
   function publicSession(s) {
     return {
       sessionId: s.id, folder: s.folder, branch: gitBranch(s.folder), model: s.modelName,
-      auto: s.auto, machine: s.machine, busy: running === s.id, stopping: !!s.stopping,
+      auto: s.auto, machine: s.machine, desktop: s.desktop, web: s.web, arc: s.arcName || null,
+      switches: typeof run.serverParts === "function",
+      busy: running === s.id, stopping: !!s.stopping,
       notes: s.notes, stats: s.stats, items: s.items,
     };
   }
@@ -218,9 +230,13 @@ module.exports = function createAgents(eng) {
     const meta = (() => { try { const mod = models.resolve(models.discover({ meta: true }), m.id); return mod ? models.loadMeta(mod) || {} : {}; } catch { return {}; } })();
 
     const { cfg: mcpCfg, gate } = run.resolveMcpConfig(s.folder, { machine: false });
-    if (s.machine && !(mcpCfg.servers && mcpCfg.servers.arcflare)) {
-      mcpCfg.servers = { arcflare: machineServer(), ...(mcpCfg.servers || {}) };
+    const parts = serverParts(s);
+    if ((parts === null || parts.length) && !(mcpCfg.servers && mcpCfg.servers.arcflare)) {
+      mcpCfg.servers = { arcflare: machineServer(parts), ...(mcpCfg.servers || {}) };
     }
+    // The Arc chosen in Models, if any: its instructions lead the system prompt.
+    const arc = eng.activeArc ? eng.activeArc() : null;
+    s.arcName = arc ? arc.name : null;
     s.notes = [];
     const withheld = trust.explain(gate);
     if (withheld) s.notes.push(withheld);
@@ -235,7 +251,10 @@ module.exports = function createAgents(eng) {
     s.agent = new Agent({
       port: m.port, model: m.servedId, cwd: s.folder,
       mcp: reg.all().length ? reg : null,
-      skills, nCtx: m.ctx, sampling: meta.sampling || null, maxSteps: 40,
+      skills, nCtx: m.ctx, maxSteps: 40,
+      // What the model file declares wins over the Arc's general setting.
+      sampling: arc ? { ...(arc.sampling || {}), ...(meta.sampling || {}) } : meta.sampling || null,
+      systemPrompt: arc ? eng.arcs.compose(arc, { surface: "agent" }) : undefined,
       approve: approver(s),
       onEvent: (ev) => onEvent(s, ev),
     });
@@ -244,7 +263,7 @@ module.exports = function createAgents(eng) {
     // Refuse any tool the model asks for after Stop was pressed.
     const exec = s.agent.execute;
     s.agent.execute = (name, args) => (s.stopping ? Promise.resolve("ERROR: stopped by the user") : exec(name, args));
-    s.modelKey = `${m.port}|${m.servedId}|${m.ctx}`;
+    s.modelKey = `${m.port}|${m.servedId}|${m.ctx}|${arc ? arc.id : ""}`;
     s.modelName = m.name || m.id;
   }
 
@@ -252,10 +271,15 @@ module.exports = function createAgents(eng) {
     const dir = path.resolve(String(folder || ""));
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) throw new Error("pick a folder");
     const existing = [...sessions.values()].find((s) => s.folder === dir);
-    if (existing && (opts.machine === undefined || opts.machine === existing.machine)) return publicSession(existing);
+    const same = (k) => opts[k] === undefined || opts[k] === existing[k];
+    if (existing && same("machine") && same("desktop") && same("web")) return publicSession(existing);
     if (existing) dispose(existing.id);
     const s = {
-      id: id(), folder: dir, machine: opts.machine !== false, auto: false, allowKinds: new Set(),
+      id: id(), folder: dir, machine: opts.machine !== false,
+      // Desktop control follows the machine tools unless it has its own answer; the web is on unless turned off.
+      desktop: typeof opts.desktop === "boolean" ? opts.desktop : opts.machine !== false,
+      web: opts.web !== false,
+      auto: false, allowKinds: new Set(),
       agent: null, reg: null, items: [], pending: new Map(), notes: [], stopping: false,
       stats: null, modelKey: null, modelName: null,
     };
@@ -281,7 +305,8 @@ module.exports = function createAgents(eng) {
     tracking++;
     try {
       const m = await eng.ensureChatModel();
-      if (!s.agent || s.modelKey !== `${m.port}|${m.servedId}|${m.ctx}`) {
+      const arcNow = eng.activeArc ? eng.activeArc() : null;
+      if (!s.agent || s.modelKey !== `${m.port}|${m.servedId}|${m.ctx}|${arcNow ? arcNow.id : ""}`) {
         upsert(s, { id: id(), kind: "note", text: s.agent ? "the model changed — reconnecting, the conversation is kept" : "starting the agent…" });
         await build(s);
       }

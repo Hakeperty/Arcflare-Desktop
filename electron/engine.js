@@ -23,6 +23,10 @@ const hub = require("arcflare/lib/hub");
 const harness = require("arcflare/lib/harness");
 const { ResidentPool } = require("arcflare/lib/gen/resident");
 
+// Arcs (ArcFlare's own models) arrived in engine 1.3; an older engine has none.
+let arcs = null;
+try { arcs = require("arcflare/lib/arcs"); } catch { /* older engine */ }
+
 const ARCFLARE_BIN = require.resolve("arcflare/bin/arcflare.js");
 const bus = new EventEmitter();
 const pool = new ResidentPool();
@@ -153,6 +157,16 @@ const chats = new Map(); // requestId -> http.ClientRequest
  */
 async function chat(requestId, { messages, temperature, maxTokens }) {
   const m = await ensureChatModel();
+  // With an Arc chosen, its instructions go first and the chat's own system
+  // prompt is added after them. They are put on here, in the main process, so
+  // the page never holds them.
+  const arc = activeArc();
+  if (arc) {
+    const own = messages[0] && messages[0].role === "system" ? messages[0].content : "";
+    const rest = own ? messages.slice(1) : messages;
+    messages = [{ role: "system", content: arcs.compose(arc, { surface: "chat", extra: own === DEFAULT_CHAT_SYSTEM ? "" : own }) }, ...rest];
+    if (temperature == null && arc.sampling && arc.sampling.temperature != null) temperature = arc.sampling.temperature;
+  }
   const body = JSON.stringify({
     model: m.servedId,
     messages,
@@ -385,6 +399,72 @@ function genStatus() {
   }));
 }
 
+// ------------------------------------------------------------------- arcs ----
+//
+// ArcFlare's own models: an open base picked for this GPU, run under
+// ArcFlare's instructions. The choice is `arc` in ~/.arcflare/config.json, the
+// same setting `arcflare arcs use` writes, so the app and the CLI agree.
+
+// The Chat screen's stock system prompt; an Arc replaces it rather than stacking on it.
+const DEFAULT_CHAT_SYSTEM = "You are a helpful assistant running locally on the user's own computer. Be clear and concise.";
+
+/** The Arc in use, or null. */
+function activeArc() {
+  if (!arcs) return null;
+  const id = cfg().arc;
+  return id ? arcs.find(id) : null;
+}
+
+/** What the Arcs screen shows: each Arc without its instructions, and what it would run on here. */
+async function arcList(refresh) {
+  if (!arcs) return { available: false, active: null, freeGb: null, source: "none", notice: [], arcs: [] };
+  const c = cfg();
+  const synced = await arcs.sync({ cfg: c, refresh: !!refresh });
+  let freeGb = null;
+  try { freeGb = serve.freeDeviceBytes(c) / 1e9; } catch { /* unknown */ }
+  // Memory the loaded chat model holds comes back when another is loaded in its place.
+  const local = models.discover({ meta: false });
+  return {
+    available: true, active: c.arc || null, freeGb, source: synced.source, notice: hub.UNCENSORED_NOTICE || [],
+    arcs: arcs.all().map((a) => {
+      const pick = arcs.pickBase(a, { local, freeGb: freeGb || null });
+      return {
+        ...arcs.publicView(a),
+        pick: { base: pick.base, installed: pick.installed, fits: pick.fits, modelId: pick.model ? pick.model.id : null, recommended: pick.recommended },
+      };
+    }),
+  };
+}
+
+/** Choose an Arc (loading its base model), or pass null to go back to plain models. */
+async function arcUse(id) {
+  if (!arcs) throw new Error("this version of the ArcFlare engine has no Arcs yet: update ArcFlare");
+  const c = cfg();
+  if (!id) {
+    delete c.arc;
+    serve.saveConfig(c);
+    return { active: null, loaded: state.loaded };
+  }
+  const a = arcs.find(id);
+  if (!a) throw new Error(`no Arc named ${id}`);
+  let freeGb = null;
+  try { freeGb = serve.freeDeviceBytes(c) / 1e9; } catch { /* unknown */ }
+  const pick = arcs.pickBase(a, { local: models.discover({ meta: false }), freeGb: freeGb || null });
+  if (!pick.model) throw new Error(`${a.name} runs on ${pick.base.slug}, which isn't on this machine yet: download it first`);
+  if (!state.loaded || state.loaded.id !== pick.model.id) await loadModel(pick.model.id);
+  serve.saveConfig({ ...cfg(), arc: a.id });
+  return { active: a.id, loaded: state.loaded };
+}
+
+/** Download the base model an Arc runs on here. `accept` confirms the notice for an abliterated base. */
+function arcInstall(id, accept) {
+  if (!arcs) throw new Error("this version of the ArcFlare engine has no Arcs yet: update ArcFlare");
+  const a = arcs.find(id);
+  if (!a) throw new Error(`no Arc named ${id}`);
+  if (a.side === "abliterated" && accept !== true) throw new Error("confirm the notice about abliterated models first");
+  return cliJob("download", `Download ${a.name}`, ["arcs", "pull", a.id, ...(a.side === "abliterated" ? ["--accept-uncensored"] : [])], { arc: a.id });
+}
+
 // -------------------------------------------------------------------- hub ----
 
 async function hubCatalogue(refresh) {
@@ -394,14 +474,26 @@ async function hubCatalogue(refresh) {
   try { freeGb = serve.freeDeviceBytes(c) / 1e9; } catch { /* unknown */ }
   return {
     source: r.source, url: r.url, ageText: hub.ageText(r.age), freeGb,
+    notice: hub.UNCENSORED_NOTICE || [],
     models: r.data.models.map((m) => ({ ...m, fit: hub.fit(m, freeGb), plan: hub.installPlan(m) })),
   };
 }
 
-function hubInstall(slug, m) {
+/** Is this hub entry a build with its refusals removed? By its tags, or its download's name. */
+function isUncensored(m, plan) {
+  return (m.tags || []).some((t) => t === "abliterated" || t === "uncensored") || (plan && plan.ref && hub.uncensoredRef(plan.ref));
+}
+
+function hubInstall(slug, m, accept) {
   const plan = hub.installPlan(m);
   if (plan.kind === "none") throw new Error("this hub entry has no install command yet");
-  return cliJob(plan.kind === "pull" ? "download" : "setup", `${plan.kind === "pull" ? "Download" : "Set up"} ${m.name}`, plan.argv, { slug });
+  // The CLI asks before downloading an abliterated build, and a job has nobody
+  // to ask. The app shows the same notice and passes the answer on.
+  const uncensored = isUncensored(m, plan);
+  if (uncensored && accept !== true) throw new Error("confirm the notice about abliterated models first");
+  const downloads = plan.kind === "pull" || plan.kind === "arc";
+  return cliJob(downloads ? "download" : "setup", `${downloads ? "Download" : "Set up"} ${m.name}`,
+    [...plan.argv, ...(uncensored && downloads ? ["--accept-uncensored"] : [])], { slug });
 }
 
 // --------------------------------------------------------------- harnesses ----
@@ -456,6 +548,7 @@ function shutdown({ stopServer = true } = {}) {
 module.exports = {
   bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
+  arcList, arcUse, arcInstall, activeArc, arcs,
   harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };

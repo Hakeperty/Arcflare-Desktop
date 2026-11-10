@@ -36,6 +36,11 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
   const [pick, setPick] = useState("");
   const [loadErr, setLoadErr] = useState("");
   const [showSystem, setShowSystem] = useState(false);
+  // The Arc in use, by name. Its instructions are added in the main process and never come here.
+  const [arcName, setArcName] = useState<string | null>(null);
+  useEffect(() => {
+    api.arcs().then((l) => setArcName(l.arcs.find((a) => a.id === l.active)?.name ?? null)).catch(() => setArcName(null));
+  }, [loaded?.id]);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
 
@@ -155,7 +160,9 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
             : <button className="btn primary sm" onClick={loadPicked} disabled={!pick || !!loadingNow}>{loadingNow ? "loading…" : "load"}</button>}
           {picked && picked.bestCtx && !(loaded && loaded.id === pick) && <span className="dim mono" style={{ fontSize: 11 }}>up to {fmtCtx(picked.bestCtx)} ctx fits</span>}
           <span className="grow" />
-          <button className={`btn sm${showSystem ? " on" : ""}`} onClick={() => setShowSystem((v) => !v)}>system prompt</button>
+          {arcName && <button className="chip ok" style={{ cursor: "pointer", background: "none" }} onClick={() => go("models")}
+            title="This chat runs under an Arc's instructions. Anything in the system prompt box is added after them. Change it in Models → Arcs.">{arcName}</button>}
+          <button className={`btn sm${showSystem ? " on" : ""}`} onClick={() => setShowSystem((v) => !v)}>{arcName ? "your additions" : "system prompt"}</button>
           {models.length === 0 && <button className="btn sm" onClick={() => go("models")}>get a model</button>}
         </div>
         {loadingNow && progress && (

@@ -111,14 +111,37 @@ export type HubModel = {
   license: string; commercial: boolean | null; defaultSize: string; vram: string; run: string;
   runnable: boolean; featured: boolean; url: string;
   fit: "fits" | "tight" | "no" | "unknown";
-  plan: { kind: "pull" | "gen" | "none"; ref?: string; id?: string };
+  plan: { kind: "pull" | "gen" | "arc" | "none"; ref?: string; id?: string };
+};
+
+/** A base model an Arc can run on. */
+export type ArcBase = { slug: string; ref: string; gb: number; license: string };
+
+/** One of ArcFlare's own models, as the app may show it: never its instructions. */
+export type Arc = {
+  id: string; name: string; side: "standard" | "abliterated"; group: "general" | "task" | "security";
+  focus: string; description: string; needs?: ("web" | "desktop")[]; bases: ArcBase[];
+  /** What it would run on here: the base, whether that is downloaded, and whether it fits the free memory. */
+  pick: { base: ArcBase; installed: boolean; fits: boolean; modelId: string | null; recommended: ArcBase };
+};
+
+export type ArcList = {
+  available: boolean; active: string | null; freeGb: number | null;
+  source: "live" | "cache" | "builtin" | "none"; notice: string[]; arcs: Arc[];
 };
 
 export type Settings = {
   llamaServer: string; memoryProfile: string; studioVram: "auto" | "keep";
   sdcpp: string; imageModelsDir: string; comfyUrl: string; genPython: string; stopServerOnQuit: boolean;
   desktopUpdates: boolean;
+  /** The agent's tool switches, shared with the `arcflare` command. */
+  tools: AgentSwitches;
+  /** The Arc in use, if one is chosen. */
+  arc: string | null;
 };
+
+/** ArcFlare's own tools, each switched on or off for the agent. */
+export type AgentSwitches = { machine?: boolean; desktop?: boolean; web?: boolean };
 
 export type Harness = { id: string; label: string; installed: boolean; builtin: boolean; bin: string | null };
 export type StudioFile = { path: string; name: string; bytes: number; mtime: number };
@@ -128,7 +151,7 @@ export type StudioFile = { path: string; name: string; bytes: number; mtime: num
 export const api = {
   systemInfo: () => call<SystemInfo>("sys:info"),
   settings: () => call<Settings>("settings:get"),
-  saveSettings: (patch: Partial<Settings>) => call<boolean>("settings:set", patch),
+  saveSettings: (patch: Partial<Settings> & AgentSwitches) => call<boolean>("settings:set", patch),
 
   models: () => call<LocalModel[]>("models:list"),
   loadModel: (id: string, opts?: { ctx?: number }) => call<LoadedModel>("models:load", id, opts ?? {}),
@@ -157,8 +180,11 @@ export const api = {
   jobs: () => call<Job[]>("jobs:list"),
   cancelJob: (id: string) => call<void>("jobs:cancel", id),
 
-  hub: (refresh?: boolean) => call<{ source: string; url: string; ageText: string; freeGb: number | null; models: HubModel[] }>("hub:catalogue", !!refresh),
-  hubInstall: (slug: string, model: HubModel) => call<Job>("hub:install", slug, model),
+  hub: (refresh?: boolean) => call<{ source: string; url: string; ageText: string; freeGb: number | null; notice: string[]; models: HubModel[] }>("hub:catalogue", !!refresh),
+  hubInstall: (slug: string, model: HubModel, accept?: boolean) => call<Job>("hub:install", slug, model, !!accept),
+  arcs: (refresh?: boolean) => call<ArcList>("arcs:list", !!refresh),
+  arcUse: (id: string | null) => call<{ active: string | null; loaded: LoadedModel | null }>("arcs:use", id),
+  arcInstall: (id: string, accept?: boolean) => call<Job>("arcs:install", id, !!accept),
 
   harnesses: () => call<Harness[]>("harness:list"),
   launchHarness: (id: string, modelId?: string) => call<boolean>("harness:launch", id, modelId),
@@ -259,7 +285,12 @@ export type AgentStats = { steps: number; toolCalls: number; tokPerSec: number |
 
 export type AgentSession = {
   sessionId: string; folder: string; branch: string | null; model: string | null;
-  auto: boolean; machine: boolean; busy: boolean; stopping: boolean;
+  auto: boolean; machine: boolean; desktop: boolean; web: boolean;
+  /** The Arc whose instructions this session runs under, by name. */
+  arc: string | null;
+  /** False on an engine from before desktop control and the web had their own switches. */
+  switches: boolean;
+  busy: boolean; stopping: boolean;
   notes: string[]; stats: AgentStats | null; items: AgentItem[];
 };
 
@@ -269,7 +300,7 @@ export type AgentDeltaEvent = { sessionId: string; itemId: string; kind: "conten
 
 export const agent = {
   recent: () => call<string[]>("agent:recent"),
-  open: (folder: string, opts?: { machine?: boolean }) => call<AgentSession>("agent:open", folder, opts ?? {}),
+  open: (folder: string, opts?: AgentSwitches) => call<AgentSession>("agent:open", folder, opts ?? {}),
   state: (id: string) => call<AgentSession>("agent:state", id),
   send: (id: string, text: string) => call<{ ok: boolean; stats: AgentStats | null }>("agent:send", id, text),
   stop: (id: string) => call<boolean>("agent:stop", id),

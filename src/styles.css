@@ -318,3 +318,4 @@ input[type="color"]::-webkit-color-swatch { border: none; }
 .term-tip { position: absolute; left: 0; top: calc(100% + 6px); z-index: 90; width: 260px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--accent); font: 12.5px/1.5 var(--sans, system-ui); color: var(--muted); text-transform: none; letter-spacing: normal; white-space: normal; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
 .term-tip b { display: block; color: var(--fg); margin-bottom: 4px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+.card.loaded { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); box-shadow: inset 2px 0 0 var(--accent-2); }

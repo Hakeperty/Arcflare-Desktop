@@ -118,6 +118,16 @@ function handle(channel, fn) {
   });
 }
 
+/** Which of ArcFlare's tools the agent gets, from the shared settings file. */
+function agentTools(c) {
+  try {
+    const run = require("arcflare/lib/agent/run");
+    if (typeof run.toolSwitches === "function") return run.toolSwitches(c);
+  } catch { /* older engine */ }
+  const machine = c.machine !== false;
+  return { machine, desktop: machine, web: false };
+}
+
 handle("sys:info", () => eng.systemInfo());
 require("./setup")(handle); // first-run wizard: setup:state/find/folder/done
 
@@ -133,12 +143,18 @@ handle("settings:get", () => {
     genPython: c.genPython || "",
     stopServerOnQuit: c.stopServerOnQuit !== false,
     desktopUpdates: c.desktopUpdates !== false,
+    // The agent's three tool switches. The CLI reads and writes the same three
+    // (arcflare mcp enable|disable [desktop|web]), so the two never disagree.
+    tools: agentTools(c),
+    arc: c.arc || null,
   };
 });
 handle("settings:set", (patch) => {
   const allowedKeys = ["llamaServer", "memoryProfile", "studioVram", "sdcpp", "imageModelsDir", "comfyUrl", "genPython", "stopServerOnQuit", "desktopUpdates", "setupDone"];
+  const switches = ["machine", "desktop", "web"];
   const c = serve.loadConfig();
   for (const k of Object.keys(patch || {})) if (allowedKeys.includes(k)) c[k] = patch[k];
+  for (const k of switches) if (typeof (patch || {})[k] === "boolean") c[k] = patch[k];
   serve.saveConfig(c);
   return true;
 });
@@ -215,8 +231,12 @@ handle("comfy:status", () => image.comfyStatus(serve.loadConfig().comfyUrl || "h
 handle("jobs:list", () => eng.jobs());
 handle("jobs:cancel", (id) => eng.cancelJob(id));
 
+handle("arcs:list", (refresh) => eng.arcList(refresh));
+handle("arcs:use", (id) => eng.arcUse(id));
+handle("arcs:install", (id, accept) => eng.arcInstall(id, accept));
+
 handle("hub:catalogue", (refresh) => eng.hubCatalogue(refresh));
-handle("hub:install", (slug, model) => eng.hubInstall(slug, model));
+handle("hub:install", (slug, model, accept) => eng.hubInstall(slug, model, accept));
 
 handle("harness:list", () => eng.harnessList());
 handle("harness:launch", (id, modelId) => eng.launchHarness(id, modelId));
