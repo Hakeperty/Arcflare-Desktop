@@ -35,6 +35,11 @@ export function SpeechTab() {
 
   const m = useMemo(() => models.find((x) => x.id === modelId), [models, modelId]);
 
+  async function setUp(torch: "cuda" | "cpu") {
+    setErr("");
+    try { setSetupId((await api.genSetup(modelId, { torch })).id); } catch (e) { setErr((e as Error).message); }
+  }
+
   async function run() {
     setErr("");
     try {
@@ -61,8 +66,8 @@ export function SpeechTab() {
           <div className="panel" style={{ padding: 12, borderColor: "var(--accent)" }}>
             <div style={{ marginBottom: 8 }}>{m.label} isn't set up yet. Setup makes it its own Python environment and installs its packages (a few GB).</div>
             <div className="row">
-              <button className="btn primary sm" onClick={async () => { const j = await api.genSetup(m.id, { torch: "cuda" }); setSetupId(j.id); }}>set up (NVIDIA)</button>
-              <button className="btn sm" onClick={async () => { const j = await api.genSetup(m.id, { torch: "cpu" }); setSetupId(j.id); }}>set up (CPU / Mac)</button>
+              <button className="btn primary sm" onClick={() => setUp("cuda")}>set up (NVIDIA)</button>
+              <button className="btn sm" onClick={() => setUp("cpu")}>set up (CPU / Mac)</button>
             </div>
             {setupJob && <div style={{ marginTop: 10 }}><JobStatus job={setupJob} /><div className="log" style={{ marginTop: 6 }}>{setupJob.log.slice(-8).join("\n")}</div></div>}
           </div>

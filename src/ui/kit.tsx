@@ -1,7 +1,26 @@
 // Small shared pieces. Plain components over the classes in styles.css.
 
 import { useEffect, useState } from "react";
-import { on, type Job } from "../lib/api";
+import { api, on, type Job } from "../lib/api";
+import { watchJob } from "../lib/jobs";
+
+/**
+ * Props that make a card or row that isn't a <button> behave like one:
+ * reachable with Tab, pressed with Enter or Space.
+ */
+export function pressable(fn: () => void) {
+  return {
+    role: "button",
+    tabIndex: 0,
+    onClick: fn,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      // Not when the key was meant for a control inside it.
+      if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      fn();
+    },
+  };
+}
 
 export function Label({ index, children }: { index?: string; children: React.ReactNode }) {
   return (
@@ -145,7 +164,16 @@ export function Panel({ title, right, children, className = "", bodyClass = "pan
 /** Live view of the job list. Every component that cares subscribes here. */
 export function useJobs(): Job[] {
   const [jobs, setJobs] = useState<Map<string, Job>>(new Map());
-  useEffect(() => on("job:update", (j: Job) => setJobs((m) => new Map(m).set(j.id, j))), []);
+  useEffect(() => {
+    const off = on("job:update", (j: Job) => setJobs((m) => new Map(m).set(j.id, j)));
+    // Jobs that were already there when this window (re)loaded.
+    api.jobs().then((all) => setJobs((m) => {
+      const next = new Map(m);
+      for (const j of all) if (!next.has(j.id)) next.set(j.id, j);
+      return next;
+    })).catch(() => {});
+    return off;
+  }, []);
   return [...jobs.values()].sort((a, b) => b.started - a.started);
 }
 
@@ -153,8 +181,10 @@ export function useJobs(): Job[] {
 export function useJob(id: string | null): Job | null {
   const [job, setJob] = useState<Job | null>(null);
   useEffect(() => {
-    if (!id) { setJob(null); return; }
-    return on("job:update", (j: Job) => { if (j.id === id) setJob(j); });
+    // Never show the previous job under a new id.
+    setJob(null);
+    if (!id) return;
+    return watchJob(id, setJob);
   }, [id]);
   return job;
 }
@@ -167,7 +197,7 @@ export function JobStatus({ job }: { job: Job | null }) {
         <span className={`led ${job.state === "running" ? "busy" : job.state === "done" ? "on" : job.state === "failed" ? "err" : "off"}`} />
         <span className="grow truncate">{job.title}</span>
         <span className="dim">{job.state === "running" ? job.stage : job.state}</span>
-        <span className="dim">{fmtSecs(((job.state === "running" ? Date.now() : (job as any).ended || Date.now()) - job.started) / 1000)}</span>
+        <span className="dim">{fmtSecs(((job.state === "running" ? Date.now() : job.ended ?? Date.now()) - job.started) / 1000)}</span>
       </div>
       {job.state === "running" && <Progress value={job.progress} />}
       {job.state === "failed" && (

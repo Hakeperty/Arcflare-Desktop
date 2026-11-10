@@ -108,6 +108,11 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
     if (meshJob?.state === "done" && meshJob.result?.file) { openFile(String(meshJob.result.file)); refreshLists(); }
   }, [meshJob?.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function setUp(torch: "cuda" | "cpu") {
+    setGenErr("");
+    try { setSetupId((await api.genSetup(modelId, { torch })).id); } catch (e) { setGenErr((e as Error).message); }
+  }
+
   async function startMesh(img?: string) {
     setGenErr("");
     try {
@@ -281,6 +286,8 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
       const out = await api.writeBytes(`${base}-edited.glb`, bytes);
       await api.saveAs(out, { filters: [{ name: "glTF binary", extensions: ["glb"] }] });
       setLog((l) => [`saved ${out.split(/[\\/]/).pop()}`, ...l]);
+    } catch (e) {
+      setLog((l) => [`could not save: ${(e as Error).message}`, ...l].slice(0, 30));
     } finally {
       refreshColours(parts.current, showSel);
       v.requestRender();
@@ -303,8 +310,8 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
           <div className="panel" style={{ padding: 10, borderColor: "var(--accent)" }}>
             <div style={{ fontSize: 13, marginBottom: 8 }}>Not set up yet. Setup installs its code and packages.</div>
             <div className="row wrap">
-              <button className="btn primary sm" onClick={async () => setSetupId((await api.genSetup(model.id, { torch: "cuda" })).id)}>set up (NVIDIA)</button>
-              <button className="btn sm" onClick={async () => setSetupId((await api.genSetup(model.id, { torch: "cpu" })).id)}>CPU / Mac</button>
+              <button className="btn primary sm" onClick={() => setUp("cuda")}>set up (NVIDIA)</button>
+              <button className="btn sm" onClick={() => setUp("cpu")}>CPU / Mac</button>
             </div>
             {setupJob && <div style={{ marginTop: 8 }}><JobStatus job={setupJob} /></div>}
           </div>
@@ -371,8 +378,7 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
         <div className="row" style={{ padding: "6px 10px", borderBottom: "1px solid var(--border)", gap: 6 }}>
           <button className={`btn sm${tool === "select" ? " on" : ""}`} onClick={() => setTool("select")} title="S">select</button>
           <button className={`btn sm${tool === "orbit" ? " on" : ""}`} onClick={() => setTool("orbit")} title="S">orbit</button>
-          <span className="dim mono" style={{ fontSize: 11 }}>{tool === "select" ? "left-drag paints · shift adds · alt removes · right-drag orbits" : "drag to orbit · right-drag pans"}</span>
-          <span className="grow" />
+          <span className="dim mono truncate grow" style={{ fontSize: 11 }}>{tool === "select" ? "left-drag paints · shift adds · alt removes · right-drag orbits" : "drag to orbit · right-drag pans"}</span>
           <button className={`btn sm${wire ? " on" : ""}`} onClick={() => { setWire(!wire); viewer.current?.setWireframe(!wire); }}>wire</button>
           <button className="btn sm" onClick={() => viewer.current?.frame()} title="F">frame</button>
         </div>

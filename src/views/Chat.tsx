@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, rc, uid, type ChatMessage, type LoadedModel, type LocalModel, type ModelProgress, type RcStatus, type RcTurnEvent } from "../lib/api";
 import { Markdown } from "../ui/md";
-import { Progress, fmtCtx, EmptyState } from "../ui/kit";
+import { Progress, fmtCtx, EmptyState, pressable } from "../ui/kit";
 import { progressText, type View } from "../App";
 import { Term } from "../ui/Term";
 
@@ -22,7 +22,9 @@ function saveConvos(c: Convo[]) {
 }
 const newConvo = (): Convo => ({ id: uid(), title: "New chat", system: DEFAULT_SYSTEM, turns: [], created: Date.now() });
 
-export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
+export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhone }: {
+  /** False while another screen is showing (this one stays mounted, hidden). */
+  active: boolean;
   loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void;
   remote: RcStatus | null; phoneChat: number; openPhone: () => void;
 }) {
@@ -41,7 +43,11 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
 
   const convo = convos.find((c) => c.id === activeId) || convos[0];
   useEffect(() => saveConvos(convos), [convos]);
-  useEffect(() => { api.models().then((m) => { setModels(m); if (!pick && m[0]) setPick(m[0].id); }).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Each time the screen is shown: a model downloaded meanwhile should be in the list.
+  useEffect(() => {
+    if (!active) return;
+    api.models().then((m) => { setModels(m); setPick((p) => p || m[0]?.id || ""); }).catch(() => {});
+  }, [active]);
   useEffect(() => { if (loaded) setPick(loaded.id); }, [loaded]);
 
   const patch = (id: string, fn: (c: Convo) => Convo) => setConvos((cs) => cs.map((c) => (c.id === id ? fn(c) : c)));
@@ -62,7 +68,7 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
   useEffect(() => {
     const el = scroller.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
-  }, [convo.turns]);
+  }, [convo.turns, active]);
 
   async function send(text: string, history?: Turn[]) {
     const body = text.trim();
@@ -121,16 +127,16 @@ export function Chat({ loaded, progress, go, remote, phoneChat, openPhone }: {
           </button>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
-          <div className={`nav${phoneMode ? " on" : ""}`} style={{ fontSize: 12 }} onClick={() => setPhoneMode(true)} title="The conversation your phone sees">
+          <div className={`nav${phoneMode ? " on" : ""}`} style={{ fontSize: 12 }} {...pressable(() => setPhoneMode(true))} title="The conversation your phone sees">
             <span className={`led ${remote?.on ? (remote.connected ? "on" : "busy") : "off"}`} />
             <span className="grow truncate">phone</span>
             {remote?.on && remote.clients > 0 && <span className="dim">{remote.clients}</span>}
           </div>
           {convos.map((c) => (
             <div key={c.id} className={`nav${!phoneMode && c.id === convo.id ? " on" : ""}`} style={{ fontFamily: "var(--sans)", fontSize: 13 }}
-              onClick={() => { setActiveId(c.id); setPhoneMode(false); }}>
+              {...pressable(() => { setActiveId(c.id); setPhoneMode(false); })}>
               <span className="grow truncate">{c.title}</span>
-              <button className="btn ghost sm" title="Delete" onClick={(e) => {
+              <button className="btn ghost sm" title="Delete this chat" aria-label={`Delete ${c.title}`} onClick={(e) => {
                 e.stopPropagation();
                 setConvos((cs) => { const rest = cs.filter((x) => x.id !== c.id); if (!rest.length) rest.push(newConvo()); if (c.id === convo.id) setActiveId(rest[0].id); return rest; });
               }}>×</button>

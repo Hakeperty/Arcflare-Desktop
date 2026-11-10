@@ -47,7 +47,7 @@ export function Studio({ loaded }: { loaded: LoadedModel | null }) {
         <Model3DTab handoff={handoff} openMesh={mesh} inputImage={inputImage} loaded={loaded} active={tab === "3d"} />
       </div>
       <div style={{ flex: 1, minHeight: 0, display: tab === "speech" ? "flex" : "none" }}><SpeechTab /></div>
-      <div style={{ flex: 1, minHeight: 0, display: tab === "flow" ? "flex" : "none" }}><FlowTab handoff={handoff} loaded={loaded} /></div>
+      <div style={{ flex: 1, minHeight: 0, display: tab === "flow" ? "flex" : "none" }}><FlowTab handoff={handoff} loaded={loaded} active={tab === "flow"} /></div>
     </div>
   );
 }

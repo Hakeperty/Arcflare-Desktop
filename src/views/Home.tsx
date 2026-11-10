@@ -2,7 +2,7 @@
 // and one click to each thing people come here to do.
 
 import type { Job, LoadedModel, SystemInfo } from "../lib/api";
-import { DotArt, Label, Meter, Panel, Spec, JobStatus } from "../ui/kit";
+import { DotArt, Label, Meter, Panel, Spec, JobStatus, pressable } from "../ui/kit";
 import type { View } from "../App";
 import { Term } from "../ui/Term";
 
@@ -89,7 +89,7 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginTop: 16 }}>
         {actions.map((a) => (
-          <div key={a.view} className="card click col" style={{ gap: 0 }} onClick={() => go(a.view)}>
+          <div key={a.view} className="card click col" style={{ gap: 0 }} {...pressable(() => go(a.view))}>
             <div className="label"><span className="a">{a.tag}</span></div>
             <div className="h2" style={{ marginTop: 10 }}>{a.title}</div>
             <p className="muted" style={{ fontSize: 13, margin: "6px 0 0", flex: 1 }}>{a.body}</p>

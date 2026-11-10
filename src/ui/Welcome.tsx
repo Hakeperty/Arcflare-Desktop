@@ -43,6 +43,9 @@ export function Welcome({ info, onRefresh, onClose, go }: {
   }, [onClose]);
 
   const idx = STEPS.findIndex((s) => s.id === step);
+  // A tick means the step is really done, not just that it was skipped past.
+  const stepDone = (id: Step, i: number) => i < idx
+    && (id === "engine" ? !!info?.llamaServer && !st?.pretendNoEngine : id === "model" ? !!info?.loaded : true);
   const next = () => setStep(STEPS[Math.min(STEPS.length - 1, idx + 1)].id);
   const finish = async (v?: View) => {
     await setup.done(true).catch(() => {});
@@ -61,8 +64,9 @@ export function Welcome({ info, onRefresh, onClose, go }: {
           <ol className="welcome-steps">
             {STEPS.map((s, i) => (
               <li key={s.id}>
-                <button className={`welcome-step${s.id === step ? " on" : i < idx ? " done" : ""}`} onClick={() => setStep(s.id)}>
-                  <span className="n">{i < idx ? "✓" : `0${i + 1}`}</span> {s.label}
+                <button className={`welcome-step${s.id === step ? " on" : stepDone(s.id, i) ? " done" : ""}`} onClick={() => setStep(s.id)}
+                  aria-current={s.id === step ? "step" : undefined}>
+                  <span className="n">{stepDone(s.id, i) ? "✓" : `0${i + 1}`}</span> {s.label}
                 </button>
               </li>
             ))}
@@ -147,9 +151,11 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
     const exe = platformExe();
     const p = await api.pickFile({ title: `Choose llama-server${exe}`, filters: exe ? [{ name: "llama-server", extensions: ["exe"] }] : [] }).catch(() => null);
     if (!p) return;
-    await api.saveSettings({ llamaServer: p });
-    setMsg(`Saved: ${p}`);
-    onRefresh();
+    try {
+      await api.saveSettings({ llamaServer: p });
+      setMsg(`Saved: ${p}`);
+      onRefresh();
+    } catch (e) { setMsg((e as Error).message); }
   }
 
   if (found) {
@@ -380,7 +386,7 @@ function HelloStep({ info, onFinish }: { info: SystemInfo | null; onFinish: (v?:
           : "Load a model in the previous step and it will say hello here."}
       </StepHead>
       <div className="welcome-hello">
-        <div className="dim mono" style={{ fontSize: 11, marginBottom: 6 }}>{loaded ? loaded.name : "no model"} says</div>
+        <div className="dim mono" style={{ fontSize: 11, marginBottom: 6 }}>{loaded ? `${loaded.name} says` : "no model loaded yet"}</div>
         <div className="welcome-hello-text">{text || (state === "talking" ? "…" : "")}{state === "talking" && <span className="caret" />}</div>
         {speed ? <div className="dim mono" style={{ fontSize: 11, marginTop: 8 }}>{speed.toFixed(1)} <Term k="toks">tok/s</Term> on this machine</div> : null}
         {err && <p className="welcome-msg err">{err}</p>}

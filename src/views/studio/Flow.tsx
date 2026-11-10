@@ -33,7 +33,7 @@ type Drag =
   | { kind: "node"; id: string; sx: number; sy: number; nx: number; ny: number }
   | { kind: "wire"; from: string; fromPort: string; x: number; y: number };
 
-export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedModel | null }) {
+export function FlowTab({ handoff, loaded, active }: { handoff: Handoff; loaded: LoadedModel | null; active: boolean }) {
   const [graph, setGraph] = useState<Graph>(initialGraph);
   const [view, setView] = useState({ x: 0, y: 0, z: 1 });
   const [states, setStates] = useState<Record<string, NodeState>>({});
@@ -54,7 +54,10 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
   useEffect(() => { try { localStorage.setItem(STORE, serializeGraph(graph)); } catch { /* full */ } }, [graph]);
 
   // Delete removes the selected node or wire (not while typing in a field).
+  // Only while this tab is the one showing: the studio keeps its tabs mounted,
+  // and Backspace on another tab must not delete a node nobody can see.
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
       if (typing || (e.key !== "Delete" && e.key !== "Backspace")) return;
@@ -64,7 +67,7 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected]);
+  }, [selected, active]);
 
   const setNodeData = (id: string, k: string, v: string | number | boolean) =>
     setGraph((g) => ({ ...g, nodes: g.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, [k]: v } } : n)) }));
@@ -93,6 +96,26 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  /** Zoom and pan so every node is on screen (never zooming in past 100%). */
+  function fitView(nodes: FlowNode[] = graph.nodes) {
+    const el = canvas.current;
+    const w = el?.clientWidth ?? 0, h = el?.clientHeight ?? 0;
+    if (!el || !w || !h || !nodes.length) { setView({ x: 0, y: 0, z: 1 }); return; }
+    const height = (n: FlowNode) => (el.querySelector<HTMLElement>(`[data-node="${n.id}"]`)?.offsetHeight ?? 240);
+    const x0 = Math.min(...nodes.map((n) => n.x)), x1 = Math.max(...nodes.map((n) => n.x + NODE_W));
+    const y0 = Math.min(...nodes.map((n) => n.y)), y1 = Math.max(...nodes.map((n) => n.y + height(n)));
+    const pad = 28;
+    const z = Math.min(1, Math.max(0.35, Math.min((w - pad * 2) / (x1 - x0), (h - pad * 2) / (y1 - y0))));
+    setView({ z, x: pad - x0 * z, y: pad - y0 * z });
+  }
+  // The first time the canvas has a size (the tab mounts hidden), show the whole flow.
+  const fitted = useRef(false);
+  useEffect(() => {
+    if (!active || fitted.current) return;
+    fitted.current = true;
+    fitView();
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function onWheel(e: React.WheelEvent) {
     const r = canvas.current!.getBoundingClientRect();
@@ -153,10 +176,11 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
   }
 
   function loadTemplate(i: number) {
-    setGraph(TEMPLATES[i].build(uid));
+    const g = TEMPLATES[i].build(uid);
+    setGraph(g);
     setStates({});
     cache.current = new Map();
-    setView({ x: 0, y: 0, z: 1 });
+    fitView(g.nodes);
   }
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph]);
@@ -184,7 +208,8 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
             const f = e.target.files?.[0];
             if (!f) return;
             const g = parseGraph(await f.text());
-            if (g) { setGraph(g); setStates({}); cache.current = new Map(); } else setMsg("that file isn't a flow");
+            if (g) { setGraph(g); setStates({}); cache.current = new Map(); fitView(g.nodes); setMsg(""); } else setMsg("that file isn't a flow");
+            e.target.value = ""; // so choosing the same file again loads it again
           }} />
         </label>
         <div className="dim" style={{ fontSize: 11, marginTop: 10, lineHeight: 1.5 }}>
@@ -198,7 +223,7 @@ export function FlowTab({ handoff, loaded }: { handoff: Handoff; loaded: LoadedM
           {running
             ? <button className="btn danger sm" onClick={stop}>stop</button>
             : <button className="btn primary sm" onClick={() => run()}>run flow</button>}
-          <button className="btn sm" onClick={() => setView({ x: 0, y: 0, z: 1 })}>reset view</button>
+          <button className="btn sm" onClick={() => fitView()} title="Show the whole flow">fit view</button>
           {msg && <span className="err" style={{ fontSize: 12 }}>{msg}</span>}
           <span className="grow" />
           <span className="dim mono" style={{ fontSize: 11 }}>{graph.nodes.length} nodes · {Math.round(view.z * 100)}%</span>
@@ -299,7 +324,7 @@ function NodeBox(p: {
   const installed = (kind: "3d" | "tts") => p.gen.filter((m) => m.kind === kind && m.installed);
 
   return (
-    <div className="panel" onPointerDown={(e) => { e.stopPropagation(); p.onSelect(); }}
+    <div className="panel" data-node={n.id} onPointerDown={(e) => { e.stopPropagation(); p.onSelect(); }}
       style={{ position: "absolute", left: n.x, top: n.y, width: NODE_W, borderColor: p.selected ? "var(--accent)" : undefined, boxShadow: "0 6px 24px rgba(0,0,0,.35)" }}>
       <div className="panel-h" style={{ cursor: "move" }} onPointerDown={(e) => { e.stopPropagation(); p.onDragStart(e); }}>
         <span className={`led ${led}`} />
@@ -340,7 +365,7 @@ function NodeBox(p: {
             ))}
             <div className="grid2" style={{ gap: 6 }}>
               {field("steps", "steps", <input className="input" type="number" value={Number(d.steps ?? 20)} onChange={(e) => p.onData("steps", Number(e.target.value))} />)}
-              {field("seed", "seed (-1 random)", <input className="input" type="number" value={Number(d.seed ?? -1)} onChange={(e) => p.onData("seed", Number(e.target.value))} />)}
+              {field("seed", "seed", <input className="input" type="number" title="-1 picks a random seed each run" value={Number(d.seed ?? -1)} onChange={(e) => p.onData("seed", Number(e.target.value))} />)}
             </div>
           </>
         )}

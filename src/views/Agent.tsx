@@ -11,6 +11,7 @@ import {
 } from "../lib/api";
 import { Markdown } from "../ui/md";
 import type { View } from "../App";
+import { baseName } from "../lib/path";
 
 const FOLDER = "arcflare.agent.folder";
 const MACHINE = "arcflare.agent.machine";
@@ -112,7 +113,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   }
 
   const busy = !!session?.busy;
-  const name = session ? session.folder.split(/[\\/]/).filter(Boolean).pop() : "";
+  const name = session ? baseName(session.folder) : "";
 
   return (
     <div className="page flush" style={{ flexDirection: "column" }}>
@@ -164,7 +165,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
             <EmptyState seed="agent-folder" title="Point the agent at a folder"
               action={<>
                 <button className="btn primary" onClick={pick}>open a folder</button>
-                {recent.length > 0 && <button className="btn" onClick={() => openFolder(recent[0])}>reopen {recent[0].split(/[\/]/).filter(Boolean).pop()}</button>}
+                {recent.length > 0 && <button className="btn" onClick={() => openFolder(recent[0])}>reopen {baseName(recent[0])}</button>}
               </>}>
               The coding agent reads, edits and runs things in a folder you choose, using the model on this computer. It asks
               before running commands unless you switch on auto mode.
