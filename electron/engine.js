@@ -282,7 +282,19 @@ function logLine(job, line) {
   bus.emit("job:update", publicJob(job));
 }
 
-/** Run a CLI command as a job (pull, gen setup), streaming its output. */
+/**
+ * Why a CLI command failed, in its own words: the CLI marks the line that
+ * says so with a cross. "exited with code 1" tells a person nothing.
+ */
+function failureReason(log) {
+  for (let i = log.length - 1; i >= 0; i--) {
+    const m = /^\s*[✗x×]\s+(.+)/.exec(log[i]);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+/** Run a CLI command as a job (pull, gen setup, engine install), streaming its output. */
 function cliJob(kind, title, args, meta) {
   const job = newJob(kind, title, meta);
   const child = spawn(process.execPath, [ARCFLARE_BIN, ...args], {
@@ -304,7 +316,7 @@ function cliJob(kind, title, args, meta) {
   child.stderr.on("data", onData);
   child.on("close", (code) => update(job, code === 0
     ? { state: "done", progress: 100, stage: "done" }
-    : { state: "failed", error: `exited with code ${code}` }));
+    : { state: "failed", error: failureReason(job.log) || `exited with code ${code}` }));
   return publicJob(job);
 }
 
@@ -494,6 +506,6 @@ function shutdown({ stopServer = true } = {}) {
 module.exports = {
   bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
-  harnessList, launchHarness, spawnFirst, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
+  harnessList, launchHarness, spawnFirst, failureReason, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };

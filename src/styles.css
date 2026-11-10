@@ -355,6 +355,10 @@ input[type="color"]::-webkit-color-swatch { border: none; }
 .welcome-main { position: relative; padding: 28px 32px 0; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
 .welcome-skip { position: sticky; bottom: 0; margin: auto -32px 0; padding: 12px 20px; display: flex; justify-content: flex-end; background: linear-gradient(transparent, var(--bg) 40%); }
 .welcome-verdict { margin: 16px 0 20px; padding-left: 10px; border-left: 2px solid var(--accent); color: var(--fg); }
+.welcome-byhand { margin-top: 14px; }
+.welcome-byhand > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }
+.welcome-byhand > summary:hover { color: var(--fg); }
+.welcome-byhand[open] > summary { margin-bottom: 8px; }
 .welcome-options { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
 .welcome-file { font: 12px var(--mono); padding: 6px 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--accent); word-break: break-all; }
 .welcome-howto { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: var(--muted); }

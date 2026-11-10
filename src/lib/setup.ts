@@ -1,7 +1,7 @@
 // The first-run wizard's own calls (electron/setup.js). Kept apart from
 // api.ts so the wizard's contract is in one place.
 
-import { ApiError } from "./api";
+import { ApiError, type Job } from "./api";
 
 async function call<T>(channel: string, ...args: unknown[]): Promise<T> {
   const r = await window.arc.invoke<T>(channel, ...args);
@@ -29,4 +29,6 @@ export const setup = {
   /** Create and open the folder ArcFlare looks in for a llama.cpp build. */
   folder: () => call<string>("setup:folder"),
   done: (done: boolean) => call<boolean>("setup:done", done),
+  /** Download and install llama.cpp for this machine. A job: follow it with useJob. */
+  installEngine: () => call<Job>("setup:install-engine"),
 };

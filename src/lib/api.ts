@@ -92,7 +92,7 @@ export type GenModel = {
 
 export type Job = {
   id: string;
-  kind: "3d" | "tts" | "image" | "setup" | "download";
+  kind: "3d" | "tts" | "image" | "setup" | "download" | "engine";
   title: string;
   state: "running" | "done" | "failed" | "cancelled";
   stage: string;

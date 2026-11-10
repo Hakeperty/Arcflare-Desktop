@@ -119,7 +119,7 @@ function handle(channel, fn) {
 }
 
 handle("sys:info", () => eng.systemInfo());
-require("./setup")(handle); // first-run wizard: setup:state/find/folder/done
+require("./setup")(handle); // first-run wizard: setup:state/find/folder/done/install-engine
 
 handle("settings:get", () => {
   const c = serve.loadConfig();

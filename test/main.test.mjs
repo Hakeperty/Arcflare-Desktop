@@ -156,3 +156,9 @@ test("a ComfyUI workflow takes a multi-line prompt with quotes", async () => {
   assert.equal(queued.prompt[3].inputs.seed, "7");
   assert.equal(readFileSync(out, "utf8"), "PNG");
 });
+
+test("a failed CLI job reports the CLI's own reason, not just an exit code", () => {
+  assert.equal(eng.failureReason(["  finding the latest llama.cpp build", "  ✗ api.github.com answered 403", "  You can also install it yourself"]), "api.github.com answered 403");
+  assert.equal(eng.failureReason(["downloading 40%", "done"]), null);
+  assert.equal(eng.failureReason([]), null);
+});

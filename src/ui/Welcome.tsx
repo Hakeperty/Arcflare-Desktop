@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, uid, type HubModel, type LocalModel, type ModelProgress, type SystemInfo } from "../lib/api";
 import { setup, type SetupState } from "../lib/setup";
-import { DotArt, Label, Mascot, Meter, Progress, Spec, useJob } from "./kit";
+import { DotArt, JobStatus, Label, Mascot, Meter, Progress, Spec, useJob } from "./kit";
 import { Term } from "./Term";
 import type { View } from "../App";
 
@@ -137,12 +137,24 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const found = st?.pretendNoEngine ? null : info?.llamaServer;
+  // The one-button path: the engine's own installer, run as a job.
+  const [jobId, setJobId] = useState<string | null>(null);
+  const job = useJob(jobId);
+  const downloading = job?.state === "running";
+  useEffect(() => {
+    if (job?.state === "done") onRefresh(); // it saved the path itself; read it back
+  }, [job?.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function downloadIt() {
+    setMsg("");
+    try { setJobId((await setup.installEngine()).id); } catch (e) { setMsg((e as Error).message); }
+  }
 
   async function findIt() {
     setBusy(true); setMsg("");
     try {
       const p = await setup.find();
-      setMsg(p ? `Found it: ${p}` : "Not found in the usual places yet. Download it below, or point to it yourself.");
+      setMsg(p ? `Found it: ${p}` : "Not found in the usual places yet. Use the download button above, or point to the file yourself.");
       onRefresh();
     } catch (e) { setMsg((e as Error).message); }
     setBusy(false);
@@ -175,34 +187,51 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
     <>
       <StepHead n="02" label="the engine" title="One download: the engine that runs models.">
         ArcFlare uses <Term k="llamacpp" />, a free, open engine, to run language models on your GPU. It isn't bundled,
-        because the right build depends on your graphics card. It takes two minutes.
+        because the right build depends on your graphics card. One button gets the right one.
       </StepHead>
-      <div className="welcome-options">
-        <div className="card col">
-          <div className="label"><span className="a">a</span> already have it?</div>
-          <p className="muted" style={{ fontSize: 13, flex: 1 }}>We'll look on your PATH and in the usual folders.</p>
-          <div className="row" style={{ gap: 6 }}>
-            <button className="btn primary sm" disabled={busy} onClick={findIt}>{busy ? "looking…" : "find it for me"}</button>
-            <button className="btn sm" onClick={pickIt}>choose the file…</button>
+      <div className="panel" style={{ padding: 16, borderColor: "var(--accent)" }}>
+        <div className="row" style={{ gap: 12, alignItems: "center" }}>
+          <div className="grow">
+            <b>Download the engine</b>
+            <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>
+              {st ? <>The right build for your {st.gpu.name ?? "graphics card"}, from llama.cpp&apos;s official release, unpacked and set up for you.</>
+                : "Checking your graphics card…"}
+            </div>
+          </div>
+          <button className="btn primary" disabled={downloading} onClick={downloadIt}>
+            {downloading ? "downloading…" : job?.state === "failed" ? "try again" : "download the engine"}
+          </button>
+        </div>
+        {job && <div style={{ marginTop: 12 }}><JobStatus job={job} /></div>}
+        {job?.state === "done" && st?.pretendNoEngine && <p className="welcome-msg">Installed. (Setup is in preview mode, so this step stays open.)</p>}
+      </div>
+      <details className="welcome-byhand">
+        <summary>Already have llama.cpp, or want to do it by hand?</summary>
+        <div className="welcome-options">
+          <div className="card col">
+            <div className="label"><span className="a">a</span> already have it?</div>
+            <p className="muted" style={{ fontSize: 13, flex: 1 }}>We'll look on your PATH and in the usual folders.</p>
+            <div className="row" style={{ gap: 6 }}>
+              <button className="btn sm" disabled={busy} onClick={findIt}>{busy ? "looking…" : "find it for me"}</button>
+              <button className="btn sm" onClick={pickIt}>choose the file…</button>
+            </div>
+          </div>
+          <div className="card col">
+            <div className="label"><span className="a">b</span> by hand</div>
+            {st ? (
+              <>
+                <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>The file to get:</p>
+                <div className="welcome-file">{st.build.file}</div>
+                <ol className="welcome-howto">
+                  <li><button className="linkbtn" onClick={() => api.openExternal(st.releases)}>Open the official releases page ↗</button> and download that file.</li>
+                  <li><button className="linkbtn" onClick={() => setup.folder().catch(() => {})}>Open the folder</button> <span className="dim mono" style={{ fontSize: 11 }}>{st.build.folder}</span> and unzip it there.</li>
+                  <li>Come back and press <b>find it for me</b>.</li>
+                </ol>
+              </>
+            ) : <p className="muted">Checking your graphics card…</p>}
           </div>
         </div>
-        <div className="card col">
-          <div className="label"><span className="a">b</span> download it</div>
-          {st ? (
-            <>
-              <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
-                For your {st.gpu.name ?? "graphics card"}, get the <b>{st.build.backend}</b> build: {st.build.why}
-              </p>
-              <div className="welcome-file">{st.build.file}</div>
-              <ol className="welcome-howto">
-                <li><button className="linkbtn" onClick={() => api.openExternal(st.releases)}>Open the official releases page ↗</button> and download that file.</li>
-                <li><button className="linkbtn" onClick={() => setup.folder().catch(() => {})}>Open the folder</button> <span className="dim mono" style={{ fontSize: 11 }}>{st.build.folder}</span> and unzip it there.</li>
-                <li>Come back and press <b>find it for me</b>.</li>
-              </ol>
-            </>
-          ) : <p className="muted">Checking your graphics card…</p>}
-        </div>
-      </div>
+      </details>
       {msg && <p className="welcome-msg">{msg}</p>}
     </>
   );

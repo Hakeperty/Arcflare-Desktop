@@ -6,6 +6,7 @@ import { DotArt, Label, Mascot, Meter, Panel, Spec, JobStatus, pressable } from 
 import type { View } from "../App";
 import { Term } from "../ui/Term";
 import { nextStep } from "../lib/nextStep";
+import { setup } from "../lib/setup";
 
 export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
   info: SystemInfo | null; loaded: LoadedModel | null; go: (v: View) => void; jobs: Job[];
@@ -21,6 +22,8 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
   ];
   const total = info?.gpu.totalGb ?? 0;
   const free = info?.gpu.freeGb ?? null;
+  // The newest engine download, if one was started from here or from setup.
+  const engineJob = jobs.find((j) => j.kind === "engine");
   const say = nextStep({ info, loaded, jobs, setupDone, ready });
 
   return (
@@ -56,10 +59,17 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
 
       {!ready && info && setupDone !== false && (
         <div className="panel" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)", padding: 14, marginBottom: 16 }}>
-          <b>One thing first:</b> ArcFlare needs llama.cpp to run language models. Download a build for your GPU from{" "}
-          <a href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" rel="noreferrer">github.com/ggml-org/llama.cpp</a>, then
-          set its <code className="md-code">llama-server</code> path in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>,
-          or <a href="#" onClick={(e) => { e.preventDefault(); openSetup(); }}>let setup walk you through it</a>.
+          <div className="row" style={{ gap: 12 }}>
+            <span className="grow"><b>One thing first:</b> ArcFlare needs the llama.cpp engine to run language models. One click downloads the right build for this machine.</span>
+            <button className="btn primary sm" disabled={engineJob?.state === "running"}
+              onClick={() => { setup.installEngine().catch(() => openSetup()); }}>
+              {engineJob?.state === "running" ? "downloading…" : engineJob?.state === "failed" ? "try again" : "download the engine"}
+            </button>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            {engineJob?.state === "failed" && <span className="err">{engineJob.error}. </span>}
+            Already have it? Set its <code className="md-code">llama-server</code> path in <a href="#" onClick={(e) => { e.preventDefault(); go("settings"); }}>Settings</a>.
+          </div>
         </div>
       )}
 
