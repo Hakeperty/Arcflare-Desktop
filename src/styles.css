@@ -139,6 +139,15 @@ textarea, input, .selectable { user-select: text; }
   font: 13px var(--mono);
 }
 .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+/* The dropdown in the app's own style: square, with an amber chevron, not the system's. */
+.select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 30px; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffb020' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.select:hover { border-color: var(--border-strong); }
+.select:disabled { cursor: default; opacity: .6; }
+.select option { background: var(--surface); color: var(--fg); }
 .textarea { resize: vertical; min-height: 64px; font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field > span { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
@@ -261,8 +270,28 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 .empty-art { display: block; width: 220px; height: 24px; margin: -6px auto 0; opacity: .7; }
 /* The panda: line art, never stretched, never selectable. */
 .mascot { display: block; width: auto; flex: none; align-self: flex-start; user-select: none; pointer-events: none; }
-.titlebar .mascot { margin-right: -4px; }
+.titlebar .mascot { margin-right: -4px; align-self: center; }
 .banner-panda { position: absolute !important; right: 28px; bottom: 0; }
+/* What the panda says: a speech bubble that is also the button for it. */
+.banner-say {
+  all: unset; box-sizing: border-box; position: absolute !important; right: 232px; top: 22px; width: 250px;
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border-strong); font-size: 13px; line-height: 1.45; color: var(--fg);
+}
+.banner-say::after { /* the tail, pointing at the panda */
+  content: ""; position: absolute; right: -6px; top: 26px; width: 10px; height: 10px; background: var(--bg);
+  border-top: 1px solid var(--border-strong); border-right: 1px solid var(--border-strong); transform: rotate(45deg);
+}
+.banner-say .go { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.banner-say:hover, .banner-say:focus-visible { border-color: var(--accent); }
+.banner-say:hover::after, .banner-say:focus-visible::after { border-color: var(--accent); }
+@media (max-width: 1340px) { .banner-say { display: none; } }
+/* Things to try, under an empty state. */
+.starters { display: flex; flex-direction: column; gap: 6px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); text-align: left; }
+.starters .label { margin-bottom: 2px; }
+.starter { all: unset; box-sizing: border-box; cursor: pointer; padding: 8px 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--muted); }
+.starter::before { content: "› "; color: var(--accent); }
+.starter:hover, .starter:focus-visible { border-color: var(--accent); color: var(--fg); }
 .welcome-panda { margin: 0 0 10px -4px; }
 .welcome-done { float: right; margin: -6px -4px 0 12px; }
 @media (max-width: 900px) { .banner-panda { display: none; } }

@@ -5,6 +5,7 @@ import type { Job, LoadedModel, SystemInfo } from "../lib/api";
 import { DotArt, Label, Mascot, Meter, Panel, Spec, JobStatus, pressable } from "../ui/kit";
 import type { View } from "../App";
 import { Term } from "../ui/Term";
+import { nextStep } from "../lib/nextStep";
 
 export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
   info: SystemInfo | null; loaded: LoadedModel | null; go: (v: View) => void; jobs: Job[];
@@ -20,12 +21,19 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
   ];
   const total = info?.gpu.totalGb ?? 0;
   const free = info?.gpu.freeGb ?? null;
+  const say = nextStep({ info, loaded, jobs, setupDone, ready });
 
   return (
     <div className="page">
       <section className="banner marks">
         <DotArt seed="arcflare-home" cols={64} rows={14} className="banner-art" />
         <Mascot mood={loaded ? "hello" : "search"} size={168} className="banner-panda" />
+        {say && (
+          <button className="banner-say" onClick={() => go(say.view)}>
+            <span>{say.text}</span>
+            <span className="go">{say.cta} →</span>
+          </button>
+        )}
         <Label index="00">machine</Label>
         <div className="h1" style={{ fontSize: 26, margin: "8px 0 6px" }}>Your models, on your hardware.</div>
         <p className="muted" style={{ margin: 0, maxWidth: 560 }}>

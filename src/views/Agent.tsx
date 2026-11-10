@@ -18,6 +18,14 @@ const MACHINE = "arcflare.agent.machine";
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* blocked */ } };
 
+// First tasks that are safe to try in any project: they read before they write.
+const AGENT_STARTERS = [
+  "Explain what this project does and how it is laid out",
+  "Find the tests, run them, and tell me what fails",
+  "Look for a bug you are confident about and show me before fixing it",
+  "Write a README from what the code actually does",
+];
+
 export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View) => void }) {
   const [session, setSession] = useState<AgentSession | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
@@ -178,9 +186,10 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
             </EmptyState>
           )}
           {session && loaded && session.items.length === 0 && (
-            <EmptyState seed={`agent-${name}`} title={`Ready in ${name}`}>
-              Ask for something: &quot;explain this project&quot;, &quot;fix the failing test&quot;, &quot;add a README&quot;.
-              It shows every file it reads and asks before running a command.
+            <EmptyState seed={`agent-${name}`} title={`Ready in ${name}`}
+              prompts={AGENT_STARTERS} onPrompt={setInput}>
+              It shows every file it reads and asks before running a command. Pick a first task to put it in the box
+              below, then change it or press send.
             </EmptyState>
           )}
           {session?.items.map((it, i) => (

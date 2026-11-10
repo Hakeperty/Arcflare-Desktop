@@ -22,6 +22,14 @@ function saveConvos(c: Convo[]) {
 }
 const newConvo = (): Convo => ({ id: uid(), title: "New chat", system: DEFAULT_SYSTEM, turns: [], created: Date.now() });
 
+// A first question, for when you have a model and no idea what to ask it.
+const STARTERS = [
+  "Explain what a context window is, like I'm new to this",
+  "Write a Python script that renames my photos by date",
+  "Give me three dinner ideas from eggs, rice and spinach",
+  "What are you good at, and what should I not trust you with?",
+];
+
 export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhone }: {
   /** False while another screen is showing (this one stays mounted, hidden). */
   active: boolean;
@@ -182,7 +190,8 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
           <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 24px" }} className="col">
             {convo.turns.length === 0 && (
               loaded
-                ? <EmptyState seed={`chat-${loaded.id}`} title={`Ask ${loaded.name} anything`}>
+                ? <EmptyState seed={`chat-${loaded.id}`} title={`Ask ${loaded.name} anything`}
+                    prompts={STARTERS} onPrompt={(t) => { if (busy === null) void send(t); }}>
                     It runs on this computer. Nothing you type is sent anywhere.
                   </EmptyState>
                 : models.length

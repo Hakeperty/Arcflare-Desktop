@@ -105,8 +105,10 @@ export function DotArt({ seed, cols = 36, rows = 10, color = "var(--accent)", cl
 }
 
 /** An empty screen that says what goes here and offers the next step. */
-export function EmptyState({ seed, title, children, action, mood = "hello" }: {
+export function EmptyState({ seed, title, children, action, mood = "hello", prompts, onPrompt }: {
   seed: string; title: string; children?: React.ReactNode; action?: React.ReactNode; mood?: Mood;
+  /** Things to try: each is a button that hands its text to `onPrompt`. */
+  prompts?: string[]; onPrompt?: (text: string) => void;
 }) {
   return (
     <div className="empty-state">
@@ -118,6 +120,12 @@ export function EmptyState({ seed, title, children, action, mood = "hello" }: {
       <div className="empty-title">{title}</div>
       {children && <div className="empty-body">{children}</div>}
       {action && <div className="row" style={{ justifyContent: "center", gap: 8, marginTop: 14 }}>{action}</div>}
+      {prompts && onPrompt && (
+        <div className="starters">
+          <div className="label">try one</div>
+          {prompts.map((t) => <button key={t} className="starter" onClick={() => onPrompt(t)}>{t}</button>)}
+        </div>
+      )}
     </div>
   );
 }

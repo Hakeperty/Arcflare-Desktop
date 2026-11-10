@@ -14,6 +14,9 @@ const ABOUT: Record<string, string> = {
   codex: "OpenAI's Codex CLI, pointed at your local model instead of the cloud.",
 };
 
+// Each tool's own install command, kept in one place: the website.
+const INSTALL_HELP = "https://arcflare.net/harnesses";
+
 export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
   const [list, setList] = useState<Harness[]>([]);
   const [msg, setMsg] = useState("");
@@ -37,7 +40,8 @@ export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
       {msg && <div className="panel" role="status" style={{ padding: 10, marginBottom: 12, borderColor: failed ? "var(--danger)" : "var(--accent-2)" }}>{msg}</div>}
       <div className="grid3">
         {list.map((h) => (
-          <div key={h.id} className={`card col${h.installed ? " click" : ""}`} style={{ gap: 0 }} {...(h.installed ? pressable(() => launch(h)) : {})}>
+          <div key={h.id} className="card col click" style={{ gap: 0 }}
+            {...pressable(() => (h.installed ? launch(h) : api.openExternal(INSTALL_HELP).catch(() => {})))}>
             <div className="row">
               <span className={`led ${h.installed ? "on" : "off"}`} />
               <span className="h2 grow">{h.label}</span>
@@ -46,7 +50,7 @@ export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
             <p className="muted" style={{ fontSize: 13, flex: 1 }}>{ABOUT[h.id] || `${h.label}, pointed at your local model.`}</p>
             {h.installed
               ? <div className="go">open in a terminal →</div>
-              : <div className="go" style={{ color: "var(--muted-2)" }}>not installed</div>}
+              : <div className="go">not installed · how to get it →</div>}
           </div>
         ))}
       </div>
