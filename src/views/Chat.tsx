@@ -186,10 +186,10 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
                     It runs on this computer. Nothing you type is sent anywhere.
                   </EmptyState>
                 : models.length
-                  ? <EmptyState seed="chat-load" title="Pick a model and press load">
+                  ? <EmptyState mood="search" seed="chat-load" title="Pick a model and press load">
                       ArcFlare sizes its context to the VRAM you have free, then you can chat.
                     </EmptyState>
-                  : <EmptyState seed="chat-none" title="No models yet"
+                  : <EmptyState mood="search" seed="chat-none" title="No models yet"
                       action={<button className="btn primary" onClick={() => go("models")}>get one</button>}>
                       Download one that fits your GPU from the hub.
                     </EmptyState>

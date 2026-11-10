@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, uid, type HubModel, type LocalModel, type ModelProgress, type SystemInfo } from "../lib/api";
 import { setup, type SetupState } from "../lib/setup";
-import { DotArt, Label, Meter, Progress, Spec, useJob } from "./kit";
+import { DotArt, Label, Mascot, Meter, Progress, Spec, useJob } from "./kit";
 import { Term } from "./Term";
 import type { View } from "../App";
 
@@ -58,7 +58,8 @@ export function Welcome({ info, onRefresh, onClose, go }: {
     <div className="modal-back welcome-back">
       <div className="welcome" role="dialog" aria-label="Set up ArcFlare">
         <aside className="welcome-rail">
-          <DotArt seed="arcflare-welcome" cols={22} rows={8} className="welcome-art" />
+          <Mascot mood={step === "model" ? "search" : "hello"} size={104} className="welcome-panda" />
+          <DotArt seed="arcflare-welcome" cols={22} rows={3} className="welcome-art" />
           <div className="welcome-brand">arc<b>flare</b></div>
           <div className="dim" style={{ fontSize: 12, marginBottom: 18 }}>set up in four steps</div>
           <ol className="welcome-steps">
@@ -118,7 +119,7 @@ function MachineStep({ info, st, onNext }: { info: SystemInfo | null; st: SetupS
       </StepHead>
       <div className="panel" style={{ padding: 16 }}>
         <dl className="col" style={{ gap: 8, margin: 0 }}>
-          <Spec k="graphics" v={st?.gpu.name ?? "…"} />
+          <Spec k="graphics" v={st ? (st.gpu.name ?? "no name reported") : "…"} />
           <Spec k={<>free <Term k="vram">vram</Term></>} v={free != null ? `${free} GB${total ? ` of ${total}` : ""}` : "not measured yet"} />
           {free != null && total ? <Meter need={total - free} of={total} label={`${(total - free).toFixed(1)} GB already in use`} /> : null}
           <Spec k="memory (ram)" v={info ? `${info.ramGb} GB` : "…"} />
@@ -386,6 +387,7 @@ function HelloStep({ info, onFinish }: { info: SystemInfo | null; onFinish: (v?:
           : "Load a model in the previous step and it will say hello here."}
       </StepHead>
       <div className="welcome-hello">
+        {state === "done" && <Mascot mood="cheeky" size={84} className="welcome-done" />}
         <div className="dim mono" style={{ fontSize: 11, marginBottom: 6 }}>{loaded ? `${loaded.name} says` : "no model loaded yet"}</div>
         <div className="welcome-hello-text">{text || (state === "talking" ? "…" : "")}{state === "talking" && <span className="caret" />}</div>
         {speed ? <div className="dim mono" style={{ fontSize: 11, marginTop: 8 }}>{speed.toFixed(1)} <Term k="toks">tok/s</Term> on this machine</div> : null}

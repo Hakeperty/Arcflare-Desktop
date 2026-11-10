@@ -3,6 +3,22 @@
 import { useEffect, useState } from "react";
 import { api, on, type Job } from "../lib/api";
 import { watchJob } from "../lib/jobs";
+import pandaHello from "../assets/panda-hello.png";
+import pandaSearch from "../assets/panda-search.png";
+import pandaCheeky from "../assets/panda-cheeky.png";
+
+/**
+ * The ArcFlare panda, the same one as on arcflare.net and in the phone app.
+ * Three moods: "hello" holds the flare (welcome, ready, the default),
+ * "search" looks through a magnifying glass (nothing here yet, go and find
+ * one), "cheeky" sticks its tongue out (it worked).
+ */
+export type Mood = "hello" | "search" | "cheeky";
+const PANDA: Record<Mood, string> = { hello: pandaHello, search: pandaSearch, cheeky: pandaCheeky };
+
+export function Mascot({ mood = "hello", size = 96, className = "" }: { mood?: Mood; size?: number; className?: string }) {
+  return <img src={PANDA[mood]} alt="" aria-hidden draggable={false} className={`mascot ${className}`} style={{ height: size }} />;
+}
 
 /**
  * Props that make a card or row that isn't a <button> behave like one:
@@ -89,12 +105,16 @@ export function DotArt({ seed, cols = 36, rows = 10, color = "var(--accent)", cl
 }
 
 /** An empty screen that says what goes here and offers the next step. */
-export function EmptyState({ seed, title, children, action }: {
-  seed: string; title: string; children?: React.ReactNode; action?: React.ReactNode;
+export function EmptyState({ seed, title, children, action, mood = "hello" }: {
+  seed: string; title: string; children?: React.ReactNode; action?: React.ReactNode; mood?: Mood;
 }) {
   return (
     <div className="empty-state">
-      <DotArt seed={seed} className="empty-art" />
+      {/* The panda stands on the dot field, which is different on every screen. */}
+      <div className="empty-scene">
+        <Mascot mood={mood} size={92} />
+        <DotArt seed={seed} rows={4} className="empty-art" />
+      </div>
       <div className="empty-title">{title}</div>
       {children && <div className="empty-body">{children}</div>}
       {action && <div className="row" style={{ justifyContent: "center", gap: 8, marginTop: 14 }}>{action}</div>}

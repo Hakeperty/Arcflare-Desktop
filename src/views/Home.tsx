@@ -2,7 +2,7 @@
 // and one click to each thing people come here to do.
 
 import type { Job, LoadedModel, SystemInfo } from "../lib/api";
-import { DotArt, Label, Meter, Panel, Spec, JobStatus, pressable } from "../ui/kit";
+import { DotArt, Label, Mascot, Meter, Panel, Spec, JobStatus, pressable } from "../ui/kit";
 import type { View } from "../App";
 import { Term } from "../ui/Term";
 
@@ -25,6 +25,7 @@ export function Home({ info, loaded, go, jobs, setupDone, openSetup }: {
     <div className="page">
       <section className="banner marks">
         <DotArt seed="arcflare-home" cols={64} rows={14} className="banner-art" />
+        <Mascot mood={loaded ? "hello" : "search"} size={168} className="banner-panda" />
         <Label index="00">machine</Label>
         <div className="h1" style={{ fontSize: 26, margin: "8px 0 6px" }}>Your models, on your hardware.</div>
         <p className="muted" style={{ margin: 0, maxWidth: 560 }}>

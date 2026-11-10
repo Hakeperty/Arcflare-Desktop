@@ -172,7 +172,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
             </EmptyState>
           )}
           {session && !loaded && (
-            <EmptyState seed="agent-model" title="Load a model first"
+            <EmptyState mood="search" seed="agent-model" title="Load a model first"
               action={<><button className="btn primary" onClick={() => go("models")}>models</button><button className="btn" onClick={() => go("chat")}>chat</button></>}>
               The agent uses the model loaded in this app. A 20–35B coding model works best.
             </EmptyState>
