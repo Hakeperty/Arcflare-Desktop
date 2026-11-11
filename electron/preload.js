@@ -15,6 +15,8 @@ const CHANNELS = new Set([
   "image:models", "image:generate", "comfy:status",
   "jobs:list", "jobs:cancel",
   "hub:catalogue", "hub:install",
+  "arcs:list", "arcs:use", "arcs:install",
+  "store:list", "store:skillAdd", "store:skillRemove", "store:mcpAdd", "store:mcpRemove",
   "harness:list", "harness:launch",
   "files:pick", "files:saveAs", "files:writeBytes", "files:reveal", "files:openStudio", "files:list",
   "open:external",

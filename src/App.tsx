@@ -6,6 +6,7 @@ import { Chat } from "./views/Chat";
 import { Agent } from "./views/Agent";
 import { Studio } from "./views/Studio";
 import { Models } from "./views/Models";
+import { Store } from "./views/Store";
 import { Harnesses } from "./views/Harnesses";
 import { Settings } from "./views/Settings";
 import { Jobs } from "./views/Jobs";
@@ -14,7 +15,7 @@ import { UpdatePill, useUpdates } from "./ui/Update";
 import { Welcome } from "./ui/Welcome";
 import { setup } from "./lib/setup";
 
-export type View = "home" | "chat" | "agent" | "studio" | "models" | "harnesses" | "jobs" | "settings";
+export type View = "home" | "chat" | "agent" | "studio" | "models" | "store" | "harnesses" | "jobs" | "settings";
 
 const NAV: { id: View; label: string; key: string; group?: string }[] = [
   { id: "home", label: "home", key: "1" },
@@ -22,9 +23,10 @@ const NAV: { id: View; label: string; key: string; group?: string }[] = [
   { id: "agent", label: "agent", key: "3" },
   { id: "studio", label: "studio", key: "4" },
   { id: "models", label: "models", key: "5", group: "machine" },
-  { id: "harnesses", label: "harnesses", key: "6" },
-  { id: "jobs", label: "jobs", key: "7" },
-  { id: "settings", label: "settings", key: "8" },
+  { id: "store", label: "store", key: "6" },
+  { id: "harnesses", label: "harnesses", key: "7" },
+  { id: "jobs", label: "jobs", key: "8" },
+  { id: "settings", label: "settings", key: "9" },
 ];
 
 export function App() {
@@ -64,7 +66,7 @@ export function App() {
     return () => offs.forEach((f) => f());
   }, []);
 
-  // Ctrl/Cmd + 1..8 switch views, like tabs in a browser.
+  // Ctrl/Cmd + 1..9 switch views, like tabs in a browser.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
@@ -122,6 +124,7 @@ export function App() {
           {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
           {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
+          {view === "store" && <Store loaded={loaded} go={setView} />}
           {view === "harnesses" && <Harnesses loaded={loaded} />}
           {view === "jobs" && <Jobs jobs={jobs} />}
           {view === "settings" && <Settings info={info} update={update} openSetup={() => setWelcome(true)} />}

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   agent, api, on,
   type AgentApproval, type AgentDecision, type AgentDeltaEvent, type AgentItem, type AgentItemEvent, type AgentPreview,
-  type AgentSession, type AgentStatusEvent, type LoadedModel,
+  type AgentSession, type AgentStatusEvent, type AgentSwitches, type LoadedModel,
 } from "../lib/api";
 import { Markdown } from "../ui/md";
 import type { View } from "../App";
@@ -22,16 +22,18 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   const [recent, setRecent] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [err, setErr] = useState("");
-  const [machine, setMachine] = useState(read(MACHINE) !== "0");
+  // ArcFlare's own tools, each with a switch. They live in the settings file
+  // the `arcflare` command shares, so they are remembered and the two agree.
+  const [sw, setSw] = useState<Required<AgentSwitches>>({ machine: read(MACHINE) !== "0", desktop: read(MACHINE) !== "0", web: true });
   const [showNotes, setShowNotes] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const sid = session?.sessionId;
 
-  async function openFolder(folder: string, opts?: { machine?: boolean }) {
+  async function openFolder(folder: string, opts?: AgentSwitches) {
     setErr("");
     try {
-      const s = await agent.open(folder, { machine: opts?.machine ?? machine });
+      const s = await agent.open(folder, { ...sw, ...(opts ?? {}) });
       setSession(s);
       write(FOLDER, s.folder);
       agent.recent().then(setRecent).catch(() => {});
@@ -42,10 +44,14 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   useEffect(() => {
     agent.recent().then(setRecent).catch(() => {});
     const last = read(FOLDER);
-    if (last) {
-      agent.open(last, { machine }).then((s) => { setSession(s); agent.recent().then(setRecent).catch(() => {}); })
+    // The saved switches first, so the session opens with the tools it had.
+    api.settings().then((st) => st.tools).catch(() => null).then((saved) => {
+      const tools = saved ? { machine: saved.machine !== false, desktop: saved.desktop !== false, web: saved.web !== false } : sw;
+      setSw(tools);
+      if (!last) return;
+      agent.open(last, tools).then((s) => { setSession(s); agent.recent().then(setRecent).catch(() => {}); })
         .catch(() => write(FOLDER, ""));   // moved or deleted since: just start without it
-    }
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates for the open session.
@@ -104,11 +110,15 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
     try { await agent.auto(session.sessionId, !session.auto); } catch (e) { setErr((e as Error).message); }
   }
 
-  function toggleMachine() {
-    const next = !machine;
-    setMachine(next);
-    write(MACHINE, next ? "1" : "0");
-    if (session) openFolder(session.folder, { machine: next });
+  function toggle(key: keyof AgentSwitches) {
+    const next = { ...sw, [key]: !sw[key] };
+    // Desktop control is part of the machine tools until it has its own answer:
+    // turning the machine tools off takes it along, turning them on brings it back.
+    if (key === "machine") next.desktop = next.machine;
+    setSw(next);
+    write(MACHINE, next.machine ? "1" : "0");
+    api.saveSettings(next).catch(() => {});
+    if (session) openFolder(session.folder, next);
   }
 
   const busy = !!session?.busy;
@@ -136,10 +146,23 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
         <span className="grow" />
         {session && (
           <>
-            <button className={`btn sm${machine ? " on" : ""}`} onClick={toggleMachine} disabled={busy}
-              title="ArcFlare's machine server: lets the agent open apps, see the screen and use the desktop. Changing it restarts the session.">
-              machine tools {machine ? "on" : "off"}
+            {session.arc && <span className="chip ok" title="This session runs under an Arc's instructions. Change it in Models → Arcs.">{session.arc}</span>}
+            <button className={`btn sm${sw.machine ? " on" : ""}`} onClick={() => toggle("machine")} disabled={busy}
+              title="ArcFlare's machine server: lets the agent run, build and test, open apps and use Blender. Changing it restarts the session.">
+              machine tools {sw.machine ? "on" : "off"}
             </button>
+            {session.switches && (
+              <>
+                <button className={`btn sm${sw.desktop ? " on" : ""}`} onClick={() => toggle("desktop")} disabled={busy}
+                  title="Desktop control: the agent can see the screen and use the mouse and keyboard. It asks before each action unless auto mode is on. Changing it restarts the session.">
+                  desktop {sw.desktop ? "on" : "off"}
+                </button>
+                <button className={`btn sm${sw.web ? " on" : ""}`} onClick={() => toggle("web")} disabled={busy}
+                  title="Web: the agent can search the web and read pages. Public internet only. Changing it restarts the session.">
+                  web {sw.web ? "on" : "off"}
+                </button>
+              </>
+            )}
             <button className={`btn sm${session.auto ? " danger on" : ""}`} onClick={toggleAuto}
               title={session.auto ? "Commands run without asking" : "Every command asks first"}>
               {session.auto ? "⚠ auto mode" : "asks first"}
