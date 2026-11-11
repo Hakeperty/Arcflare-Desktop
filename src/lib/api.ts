@@ -198,7 +198,7 @@ export const api = {
   cancelJob: (id: string) => call<void>("jobs:cancel", id),
 
   hub: (refresh?: boolean) => call<{ source: string; url: string; ageText: string; freeGb: number | null; notice: string[]; models: HubModel[] }>("hub:catalogue", !!refresh),
-  hubInstall: (slug: string, model: HubModel, accept?: boolean) => call<Job>("hub:install", slug, model, !!accept),
+  hubInstall: (slug: string, accept?: boolean) => call<Job>("hub:install", slug, !!accept),
   store: (refresh?: boolean) => call<StoreList>("store:list", !!refresh),
   storeSkillAdd: (id: string) => call<StoreList>("store:skillAdd", id),
   storeSkillRemove: (id: string) => call<StoreList>("store:skillRemove", id),

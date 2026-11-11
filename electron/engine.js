@@ -555,6 +555,7 @@ async function hubCatalogue(refresh) {
   const r = await hub.load({ cfg: c, refresh: !!refresh });
   let freeGb = null;
   try { freeGb = serve.freeDeviceBytes(c) / 1e9; } catch { /* unknown */ }
+  lastCatalogue = r.data.models;
   return {
     source: r.source, url: r.url, ageText: hub.ageText(r.age), freeGb,
     notice: hub.UNCENSORED_NOTICE || [],
@@ -567,7 +568,14 @@ function isUncensored(m, plan) {
   return (m.tags || []).some((t) => t === "abliterated" || t === "uncensored") || (plan && plan.ref && hub.uncensoredRef(plan.ref));
 }
 
-function hubInstall(slug, m, accept) {
+let lastCatalogue = null; // the models main last loaded; installs are looked up here
+
+async function hubInstall(slug, accept) {
+  // Install from the catalogue main itself loaded, never from an entry the
+  // renderer hands over: the entry decides which CLI command runs.
+  if (!lastCatalogue) await hubCatalogue(false);
+  const m = (lastCatalogue || []).find((x) => x.slug === slug);
+  if (!m) throw new Error(`no hub entry "${slug}" — refresh the catalogue`);
   const plan = hub.installPlan(m);
   if (plan.kind === "none") throw new Error("this hub entry has no install command yet");
   // The CLI asks before downloading an abliterated build, and a job has nobody
@@ -585,12 +593,28 @@ function harnessList() {
   return harness.list().map((h) => ({ id: h.id, label: h.label, installed: !!h.installed, builtin: !!h.builtin, bin: h.bin || null }));
 }
 
+// Arguments go through cmd.exe (Windows) or AppleScript + sh (macOS), where
+// characters like & | " \ ` $ would be read as syntax. Model ids come from file
+// names on disk, so they are not trusted to be plain.
+const SAFE_ARG = /^[\w.:@+\-\/]+$/;
+
 /**
  * Open a harness in a real terminal window, pointed at a model. Harnesses are
  * terminal programs; the honest thing is to give them a terminal.
  */
 async function launchHarness(id, modelId) {
-  const args = ["use", id, ...(modelId ? [modelId] : [])];
+  const h = harness.list().find((x) => x.id === id);
+  if (!h) throw new Error(`no harness "${id}"`);
+  let model = null;
+  if (modelId) {
+    const m = findModel(modelId);
+    if (!m) throw new Error(`no model "${modelId}"`);
+    model = m.id;
+  }
+  for (const a of [h.id, model]) {
+    if (a && !SAFE_ARG.test(a)) throw new Error(`"${a}" has characters a terminal can't be given safely — rename the file and try again`);
+  }
+  const args = ["use", h.id, ...(model ? [model] : [])];
   const node = process.execPath;
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
   if (process.platform === "win32") {
@@ -599,7 +623,9 @@ async function launchHarness(id, modelId) {
       { env, detached: true, stdio: "ignore", windowsHide: false });
   } else if (process.platform === "darwin") {
     const cmd = [node, ARCFLARE_BIN, ...args].map((a) => `'${String(a).replace(/'/g, "'\\''")}'`).join(" ");
-    await spawnFirst([["osascript", ["-e", `tell application "Terminal" to do script "ELECTRON_RUN_AS_NODE=1 ${cmd.replace(/"/g, '\\"')}"`]]],
+    // AppleScript string: escape backslashes before quotes, or \" ends the string.
+    const script = `ELECTRON_RUN_AS_NODE=1 ${cmd}`.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    await spawnFirst([["osascript", ["-e", `tell application "Terminal" to do script "${script}"`]]],
       { detached: true, stdio: "ignore" });
   } else {
     // Find a terminal that is really there before starting it. spawn() does not throw for a missing

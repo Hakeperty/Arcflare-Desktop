@@ -249,7 +249,7 @@ export function Hub() {
     // The same notice the CLI shows before it downloads a build with its refusals removed.
     const accept = isAbliterated(m) ? acceptNotice(data?.notice ?? []) : false;
     if (isAbliterated(m) && !accept) return;
-    try { const j = await api.hubInstall(m.slug, m, accept); setJobId(j.id); } catch (e) { setErr((e as Error).message); }
+    try { const j = await api.hubInstall(m.slug, accept); setJobId(j.id); } catch (e) { setErr((e as Error).message); }
   }
   const n = (t: Collection, sh: Shelf = "all") => (data ? data.models.filter((m) => inCollection(m, t, sh)).length : 0);
 

@@ -265,7 +265,7 @@ function ModelStep({ info, onNext }: { info: SystemInfo | null; onNext: () => vo
   }
   async function download(m: HubModel) {
     setErr("");
-    try { const j = await api.hubInstall(m.slug, m); setJobId(j.id); } catch (e) { setErr((e as Error).message); }
+    try { const j = await api.hubInstall(m.slug); setJobId(j.id); } catch (e) { setErr((e as Error).message); }
   }
   // When the download finishes, find the new file and load it.
   useEffect(() => {
