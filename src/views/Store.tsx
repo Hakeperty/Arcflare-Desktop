@@ -4,7 +4,7 @@
 // Models are the hub and the Arcs, which already have their own screens.
 
 import { useEffect, useState } from "react";
-import { api, type LoadedModel, type StoreList, type StoreMcp, type StoreSkill } from "../lib/api";
+import { api, type LoadedModel, type LocalSkill, type StoreList, type StoreMcp, type StoreSkill } from "../lib/api";
 import { EmptyState, ViewHead } from "../ui/kit";
 import { Markdown } from "../ui/md";
 import { Arcs, Hub } from "./Models";
@@ -56,6 +56,9 @@ function Skills({ data, err, refresh, add, remove }: {
   data: StoreList; err: string; refresh: () => void; add: (id: string) => void; remove: (id: string) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  // Every skill on this computer (the store's and your own), re-read whenever the store list changes.
+  const [mine, setMine] = useState<LocalSkill[]>([]);
+  useEffect(() => { api.skills().then(setMine).catch(() => setMine([])); }, [data]);
   const missing = data.skills.filter((s) => !s.installed);
   const state = (s: StoreSkill) => !s.installed ? null : !s.fromStore ? "yours" : s.current ? "added" : "update";
   return (
@@ -69,6 +72,23 @@ function Skills({ data, err, refresh, add, remove }: {
         when a task calls for it. Adding one copies it to <span className="mono">~/.arcflare/skills</span>, for the command line too.
       </ViewHead>
       {err && <div className="err" style={{ marginBottom: 10 }}>{err}</div>}
+      {mine.length > 0 && <>
+        <div className="label" style={{ marginBottom: 8 }}>{"//"} on this computer · {mine.filter((s) => s.enabled).length} of {mine.length} on</div>
+        <div className="card col" style={{ gap: 0, marginBottom: 18, padding: 0 }}>
+          {mine.map((s, i) => (
+            <div key={s.name} className="row" style={{ gap: 10, padding: "8px 12px", borderTop: i ? "1px solid var(--border)" : "none", opacity: s.enabled ? 1 : 0.6 }}>
+              <span className="mono" style={{ fontWeight: 600, flexShrink: 0 }}>{s.name}</span>
+              <span className="muted grow truncate" style={{ fontSize: 13 }} title={s.description}>{s.description}</span>
+              <button className={`btn sm${s.enabled ? " on" : ""}`} role="switch" aria-checked={s.enabled} aria-label={`${s.name}: offered to the agent`}
+                onClick={() => api.skillSet(s.name, !s.enabled).then(setMine).catch(() => {})}>{s.enabled ? "on" : "off"}</button>
+            </div>
+          ))}
+        </div>
+        <div className="dim" style={{ fontSize: 12, margin: "-10px 0 18px" }}>
+          A skill that is off stays installed; the agent is just not offered it. It applies from the agent&apos;s next session, here, on the command line and on the phone.
+        </div>
+        <div className="label" style={{ marginBottom: 8 }}>{"//"} in the store</div>
+      </>}
       <div className="grid3">
         {data.skills.map((s) => {
           const st = state(s);

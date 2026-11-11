@@ -183,7 +183,7 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
       {/* conversation */}
       <section style={{ flex: 1, minWidth: 0, display: phoneMode ? "none" : "flex", flexDirection: "column" }}>
         <div className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", gap: 8 }}>
-          <select className="select" style={{ maxWidth: 360 }} value={pick} onChange={(e) => setPick(e.target.value)} disabled={!!loadingNow}>
+          <select className="select" style={{ maxWidth: 520 }} value={pick} onChange={(e) => setPick(e.target.value)} disabled={!!loadingNow}>
             {models.length === 0 && <option value="">no models found</option>}
             {models.map((m) => (
               <option key={m.id} value={m.id}>{m.id} · {m.sizeGb} GB{m.fits === false ? " · too big" : ""}</option>
@@ -239,7 +239,7 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
 
         <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
           <div style={{ maxWidth: 820, margin: "0 auto" }} className="row">
-            <textarea className="textarea grow" rows={Math.min(8, Math.max(2, input.split("\n").length))} value={input}
+            <textarea className="textarea grow" style={{ resize: "none" }} rows={Math.min(8, Math.max(2, input.split("\n").length))} value={input}
               placeholder={loaded ? "Message — Enter to send, Shift+Enter for a new line" : "Load a model to start"}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(input); } }} />
@@ -263,7 +263,7 @@ const TurnView = memo(function TurnView({ t, streaming, rate }: {
   const [open, setOpen] = useState(false);
   if (t.role === "user") {
     return (
-      <div style={{ alignSelf: "flex-end", maxWidth: "80%", background: "var(--surface-2)", border: "1px solid var(--border)", padding: "10px 14px", whiteSpace: "pre-wrap" }}>
+      <div style={{ alignSelf: "flex-end", maxWidth: "80%", background: "var(--surface-2)", border: "1px solid var(--border)", padding: "10px 14px", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
         {t.content}
       </div>
     );

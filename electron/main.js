@@ -283,6 +283,8 @@ handle("arcs:install", (id, accept) => eng.arcInstall(id, accept));
 handle("store:list", (refresh) => eng.storeList(refresh));
 handle("store:skillAdd", (id) => eng.storeSkillAdd(id));
 handle("store:skillRemove", (id) => eng.storeSkillRemove(id));
+handle("skills:list", () => eng.skillsList());
+handle("skills:set", (name, on) => eng.skillSet(name, on));
 handle("store:mcpAdd", (id, extra, accept) => eng.storeMcpAdd(id, extra, accept));
 handle("store:mcpRemove", (id) => eng.storeMcpRemove(id));
 

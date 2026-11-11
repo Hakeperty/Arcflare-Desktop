@@ -134,6 +134,9 @@ export type StoreSkill = {
 };
 
 /** An MCP server in the store. `runs` is the command a third-party one would start. */
+/** A skill on this computer. Off: still installed, but the agent is not offered it. */
+export type LocalSkill = { name: string; description: string; enabled: boolean };
+
 export type StoreMcp = {
   id: string; name: string; by: string; description: string; ours: boolean; runs: string | null;
   needs: string | null; hasNeeds: boolean; argument: { name: string; about: string; required: boolean } | null;
@@ -202,6 +205,8 @@ export const api = {
   store: (refresh?: boolean) => call<StoreList>("store:list", !!refresh),
   storeSkillAdd: (id: string) => call<StoreList>("store:skillAdd", id),
   storeSkillRemove: (id: string) => call<StoreList>("store:skillRemove", id),
+  skills: () => call<LocalSkill[]>("skills:list"),
+  skillSet: (name: string, on: boolean) => call<LocalSkill[]>("skills:set", name, on),
   storeMcpAdd: (id: string, extra: string[], accept: boolean) => call<StoreList>("store:mcpAdd", id, extra, accept),
   storeMcpRemove: (id: string) => call<StoreList>("store:mcpRemove", id),
   arcs: (refresh?: boolean) => call<ArcList>("arcs:list", !!refresh),

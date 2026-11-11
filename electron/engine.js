@@ -31,6 +31,10 @@ try { arcs = require("arcflare/lib/arcs"); } catch { /* older engine */ }
 let storemod = null;
 try { storemod = require("arcflare/lib/store"); } catch { /* older engine */ }
 
+// Switching a skill off (engine 1.2 and later); an older engine has no switch.
+let skillsmod = null;
+try { skillsmod = require("arcflare/lib/agent/skills"); } catch { /* older engine */ }
+
 const ARCFLARE_BIN = require.resolve("arcflare/bin/arcflare.js");
 const bus = new EventEmitter();
 const pool = new ResidentPool();
@@ -535,6 +539,18 @@ async function storeEntry(kind, id) {
   return e;
 }
 
+/** Every skill on this computer, the store's and your own, each with its switch. */
+function skillsList() {
+  if (!skillsmod || !skillsmod.setEnabled) return [];
+  return skillsmod.discover(os.homedir(), { all: true }).map((s) => ({ name: s.name, description: s.description, enabled: s.enabled }));
+}
+function skillSet(name, on) {
+  // Only a skill that is really here, and only on or off: the name becomes an entry in a settings file.
+  if (typeof on !== "boolean" || !skillsList().some((s) => s.name === name)) throw new Error("no such skill on this computer");
+  skillsmod.setEnabled(name, on);
+  return skillsList();
+}
+
 async function storeSkillAdd(id) { storemod && storemod.addSkill(await storeEntry("skill", id)); return storeList(); }
 async function storeSkillRemove(id) { if (storemod) storemod.removeSkill(String(id)); return storeList(); }
 
@@ -706,7 +722,7 @@ module.exports = {
   bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
   arcList, arcUse, arcInstall, activeArc, arcs,
-  storeList, storeSkillAdd, storeSkillRemove, storeMcpAdd, storeMcpRemove,
+  storeList, storeSkillAdd, storeSkillRemove, storeMcpAdd, storeMcpRemove, skillsList, skillSet,
   linuxTerminal, LINUX_TERMINALS,
   harnessList, launchHarness, spawnFirst, failureReason, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
