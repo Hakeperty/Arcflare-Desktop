@@ -10,6 +10,7 @@ const CHANNELS = new Set([
   "chat:send", "chat:stop", "edit:plan",
   "rc:start", "rc:stop", "rc:status", "rc:say", "rc:clear",
   "agent:open", "agent:recent", "agent:state", "agent:list", "agent:send", "agent:stop", "agent:answer", "agent:auto", "agent:clear", "agent:close",
+  "sessions:list", "sessions:read",
   "update:status", "update:check", "update:install",
   "gen:status", "gen:setup", "gen:3d", "gen:tts",
   "image:models", "image:generate", "comfy:status",

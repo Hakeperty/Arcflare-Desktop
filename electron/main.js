@@ -14,6 +14,7 @@ const eng = require("./engine");
 const image = require("./image");
 const remote = require("./remote")(eng);
 const agents = require("./agent")(eng);
+const savedSessions = require("./sessions");
 const updater = require("./updater")({
   send: (ch, p) => send(ch, p),
   // On unless switched off in Settings; stored in the shared config.json.
@@ -230,6 +231,17 @@ handle("agent:open", (folder, opts) => {
   try { fs.mkdirSync(serve.HOME, { recursive: true }); fs.writeFileSync(RECENT, JSON.stringify(list, null, 2)); } catch { /* not fatal */ }
   return r;
 });
+// Every session on this computer, read-only: the app's live ones, then the saved
+// command-line and phone ones (see sessions.js; the renderer sends no paths).
+handle("sessions:list", () => {
+  const live = agents.list().map((l) => {
+    const s = agents.state(l.sessionId);
+    const first = s.items.find((i) => i.kind === "user");
+    return { source: "app", id: l.sessionId, title: first ? String(first.text).replace(/\s+/g, " ").slice(0, 120) : "", folder: l.folder, model: s.model, updated: new Date().toISOString() };
+  });
+  return [...live, ...savedSessions.list(serve.HOME)];
+});
+handle("sessions:read", (source, id) => savedSessions.read(serve.HOME, source, id));
 handle("agent:state", (id) => agents.state(id));
 handle("agent:list", () => agents.list());
 handle("agent:send", (id, text) => agents.send(id, text));

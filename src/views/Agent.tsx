@@ -12,6 +12,7 @@ import {
 import { Markdown } from "../ui/md";
 import type { View } from "../App";
 import { baseName } from "../lib/path";
+import { Sessions } from "./Sessions";
 
 const FOLDER = "arcflare.agent.folder";
 const MACHINE = "arcflare.agent.machine";
@@ -29,6 +30,7 @@ const AGENT_STARTERS = [
 export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View) => void }) {
   const [session, setSession] = useState<AgentSession | null>(null);
   const [recent, setRecent] = useState<string[]>([]);
+  const [showAll, setShowAll] = useState(false);
   const [input, setInput] = useState("");
   const [err, setErr] = useState("");
   // ArcFlare's own tools, each with a switch. They live in the settings file
@@ -153,6 +155,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
         )}
         {session?.branch && <span className="chip">⎇ {session.branch}</span>}
         <span className="grow" />
+        <button className={`btn sm${showAll ? " on" : ""}`} onClick={() => setShowAll((v) => !v)} title="Sessions started in the app, from the command line or from your phone">all sessions</button>
         {session && (
           <>
             {session.arc && <span className="chip ok" title="This session runs under an Arc's instructions. Change it in Models → Arcs.">{session.arc}</span>}
@@ -192,7 +195,8 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
       <div ref={scroller} className="selectable" style={{ flex: 1, overflowY: "auto", padding: "18px 0" }}
         onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px" }} className="col">
-          {!session && (
+          {showAll && <Sessions onOpenApp={(f) => { setShowAll(false); openFolder(f); }} />}
+          {!showAll && !session && (
             <EmptyState seed="agent-folder" title="Point the agent at a folder"
               action={<>
                 <button className="btn primary" onClick={pick}>open a folder</button>
@@ -202,20 +206,20 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
               before running commands unless you switch on auto mode.
             </EmptyState>
           )}
-          {session && !loaded && (
+          {!showAll && session && !loaded && (
             <EmptyState mood="search" seed="agent-model" title="Load a model first"
               action={<><button className="btn primary" onClick={() => go("models")}>models</button><button className="btn" onClick={() => go("chat")}>chat</button></>}>
               The agent uses the model loaded in this app. A 20–35B coding model works best.
             </EmptyState>
           )}
-          {session && loaded && session.items.length === 0 && (
+          {!showAll && session && loaded && session.items.length === 0 && (
             <EmptyState seed={`agent-${name}`} title={`Ready in ${name}`}
               prompts={AGENT_STARTERS} onPrompt={setInput}>
               It shows every file it reads and asks before running a command. Pick a first task to put it in the box
               below, then change it or press send.
             </EmptyState>
           )}
-          {session?.items.map((it, i) => (
+          {!showAll && session?.items.map((it, i) => (
             <ItemView key={it.id} it={it} live={busy && i === session.items.length - 1}
               onAnswer={(approvalId, d) => agent.answer(session.sessionId, approvalId, d).catch((e) => setErr((e as Error).message))} />
           ))}

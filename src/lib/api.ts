@@ -325,6 +325,15 @@ export type AgentStatusEvent = { sessionId: string; busy: boolean; stopping: boo
 export type AgentItemEvent = { sessionId: string; item: AgentItem };
 export type AgentDeltaEvent = { sessionId: string; itemId: string; kind: "content" | "reasoning"; text: string };
 
+export type SessionSource = "app" | "cli" | "phone";
+export type SessionSummary = { source: SessionSource; id: string; title: string; folder: string; model: string | null; updated: string };
+export type SessionTranscript = { source: SessionSource; id: string; folder: string; model: string | null; messages: { role: string; text: string }[] };
+
+export const sessions = {
+  list: () => call<SessionSummary[]>("sessions:list"),
+  read: (source: SessionSource, id: string) => call<SessionTranscript>("sessions:read", source, id),
+};
+
 export const agent = {
   recent: () => call<string[]>("agent:recent"),
   open: (folder: string, opts?: AgentSwitches) => call<AgentSession>("agent:open", folder, opts ?? {}),
