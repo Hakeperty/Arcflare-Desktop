@@ -49,7 +49,7 @@ export function Sessions({ onOpenApp }: { onOpenApp: (folder: string) => void })
           title={r.source === "app" ? "Open in the agent" : "Read the saved conversation"}>
           <div className="truncate">{r.title || "(no message yet)"}</div>
           <div className="dim mono truncate" style={{ fontSize: 11 }}>
-            <span className="chip">{WHERE[r.source]}</span> {baseName(r.folder)} · {r.model ?? "?"} · {new Date(r.updated).toLocaleString()}
+            <span className="chip">{WHERE[r.source]}</span> {baseName(r.folder)} · {r.model ?? "?"} · {r.updated ? new Date(r.updated).toLocaleString() : "no date"}
           </div>
         </button>
       ))}

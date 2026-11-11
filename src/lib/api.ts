@@ -133,10 +133,10 @@ export type StoreSkill = {
   installed: boolean; fromStore: boolean; current: boolean;
 };
 
-/** An MCP server in the store. `runs` is the command a third-party one would start. */
 /** A skill on this computer. Off: still installed, but the agent is not offered it. */
 export type LocalSkill = { name: string; description: string; enabled: boolean };
 
+/** An MCP server in the store. `runs` is the command a third-party one would start. */
 export type StoreMcp = {
   id: string; name: string; by: string; description: string; ours: boolean; runs: string | null;
   needs: string | null; hasNeeds: boolean; argument: { name: string; about: string; required: boolean } | null;
