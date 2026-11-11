@@ -27,6 +27,10 @@ const { ResidentPool } = require("arcflare/lib/gen/resident");
 let arcs = null;
 try { arcs = require("arcflare/lib/arcs"); } catch { /* older engine */ }
 
+// The ArcFlare Store (skills and MCP servers) arrived with the same engine as Arcs.
+let storemod = null;
+try { storemod = require("arcflare/lib/store"); } catch { /* older engine */ }
+
 const ARCFLARE_BIN = require.resolve("arcflare/bin/arcflare.js");
 const bus = new EventEmitter();
 const pool = new ResidentPool();
@@ -465,6 +469,56 @@ function arcInstall(id, accept) {
   return cliJob("download", `Download ${a.name}`, ["arcs", "pull", a.id, ...(a.side === "abliterated" ? ["--accept-uncensored"] : [])], { arc: a.id });
 }
 
+// ------------------------------------------------------------------ store ----
+//
+// Skills and MCP servers, from the engine's store (arcflare/lib/store.js): the
+// same catalogue and the same files `arcflare store` uses, so something added
+// here is added for the command line too. Models are the hub, below.
+
+async function storeList(refresh) {
+  if (!storemod) return { available: false, source: "none", skills: [], mcp: [] };
+  const { data, source } = await storemod.load({ cfg: cfg(), refresh: !!refresh });
+  const onPath = (() => { try { return require("arcflare/lib/mcp/apps").onPath; } catch { return () => null; } })();
+  return {
+    available: true, source,
+    skills: data.skills.map((s) => {
+      const st = storemod.skillState(s);
+      return { id: s.id, name: s.name, description: s.description, category: s.category, uses: s.uses || [], text: s.text,
+        installed: st.installed, fromStore: !!st.fromStore, current: st.installed ? !!st.current : false };
+    }),
+    mcp: data.mcp.map((m) => {
+      const spec = m.ours ? null : storemod.mcpSpec(m, []);
+      return { id: m.id, name: m.name, by: m.by, description: m.description, ours: !!m.ours,
+        // What would run, for a server someone else makes: shown before it is added.
+        runs: spec ? `${spec.command} ${spec.args.join(" ")}` : null,
+        needs: m.needs || null, hasNeeds: m.ours || !m.needs ? true : !!onPath(m.needs),
+        argument: m.argument || null, homepage: m.homepage || null,
+        installed: storemod.mcpState(m).installed };
+    }),
+  };
+}
+
+async function storeEntry(kind, id) {
+  if (!storemod) throw new Error("this version of the ArcFlare engine has no store yet: update ArcFlare");
+  const { data } = await storemod.load({ cfg: cfg() });
+  const e = (kind === "skill" ? data.skills : data.mcp).find((x) => x.id === id);
+  if (!e) throw new Error(`the store has no ${kind === "skill" ? "skill" : "MCP server"} called ${id}`);
+  return e;
+}
+
+async function storeSkillAdd(id) { storemod && storemod.addSkill(await storeEntry("skill", id)); return storeList(); }
+async function storeSkillRemove(id) { if (storemod) storemod.removeSkill(String(id)); return storeList(); }
+
+/** `accept` says the person saw who makes a third-party server and the command it runs. */
+async function storeMcpAdd(id, extra, accept) {
+  const m = await storeEntry("mcp", id);
+  if (!m.ours && accept !== true) throw new Error("confirm the notice about running someone else's program first");
+  const args = (Array.isArray(extra) ? extra : []).map((x) => String(x).trim()).filter(Boolean).slice(0, 8);
+  storemod.addMcp(m, { extra: args });
+  return storeList();
+}
+async function storeMcpRemove(id) { if (storemod) storemod.removeMcp(String(id)); return storeList(); }
+
 // -------------------------------------------------------------------- hub ----
 
 async function hubCatalogue(refresh) {
@@ -549,6 +603,7 @@ module.exports = {
   bus, systemInfo, listModels, loadModel, unloadModel, ensureChatModel, chat, stopChat, planEdit,
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
   arcList, arcUse, arcInstall, activeArc, arcs,
+  storeList, storeSkillAdd, storeSkillRemove, storeMcpAdd, storeMcpRemove,
   harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };

@@ -235,6 +235,12 @@ handle("arcs:list", (refresh) => eng.arcList(refresh));
 handle("arcs:use", (id) => eng.arcUse(id));
 handle("arcs:install", (id, accept) => eng.arcInstall(id, accept));
 
+handle("store:list", (refresh) => eng.storeList(refresh));
+handle("store:skillAdd", (id) => eng.storeSkillAdd(id));
+handle("store:skillRemove", (id) => eng.storeSkillRemove(id));
+handle("store:mcpAdd", (id, extra, accept) => eng.storeMcpAdd(id, extra, accept));
+handle("store:mcpRemove", (id) => eng.storeMcpRemove(id));
+
 handle("hub:catalogue", (refresh) => eng.hubCatalogue(refresh));
 handle("hub:install", (slug, model, accept) => eng.hubInstall(slug, model, accept));
 

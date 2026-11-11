@@ -97,7 +97,7 @@ const ARC_GROUPS: { key: Arc["group"]; title: string }[] = [
  * running under ArcFlare's instructions; the instructions themselves never
  * reach this screen.
  */
-function Arcs({ loaded, go }: { loaded: LoadedModel | null; go: (v: View) => void }) {
+export function Arcs({ loaded, go }: { loaded: LoadedModel | null; go: (v: View) => void }) {
   const [data, setData] = useState<ArcList | null>(null);
   const [side, setSide] = useState<Arc["side"]>("standard");
   const [shelf, setShelf] = useState<"all" | Arc["group"]>("all");
@@ -221,7 +221,7 @@ function inCollection(m: HubModel, tab: Collection, shelf: Shelf): boolean {
   return shelf === "all" || has(m, shelf === "cybersecurity" ? "security" : "arc");
 }
 
-function Hub() {
+export function Hub() {
   const [data, setData] = useState<{ source: string; ageText: string; freeGb: number | null; notice?: string[]; models: HubModel[] } | null>(null);
   const [err, setErr] = useState("");
   const [cat, setCat] = useState("Fits");

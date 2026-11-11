@@ -125,6 +125,21 @@ export type Arc = {
   pick: { base: ArcBase; installed: boolean; fits: boolean; modelId: string | null; recommended: ArcBase };
 };
 
+/** A skill in the store: instructions the agent loads for one kind of task. */
+export type StoreSkill = {
+  id: string; name: string; description: string; category: string; uses: string[]; text: string;
+  installed: boolean; fromStore: boolean; current: boolean;
+};
+
+/** An MCP server in the store. `runs` is the command a third-party one would start. */
+export type StoreMcp = {
+  id: string; name: string; by: string; description: string; ours: boolean; runs: string | null;
+  needs: string | null; hasNeeds: boolean; argument: { name: string; about: string; required: boolean } | null;
+  homepage: string | null; installed: boolean;
+};
+
+export type StoreList = { available: boolean; source: "live" | "cache" | "bundled" | "none"; skills: StoreSkill[]; mcp: StoreMcp[] };
+
 export type ArcList = {
   available: boolean; active: string | null; freeGb: number | null;
   source: "live" | "cache" | "builtin" | "none"; notice: string[]; arcs: Arc[];
@@ -182,6 +197,11 @@ export const api = {
 
   hub: (refresh?: boolean) => call<{ source: string; url: string; ageText: string; freeGb: number | null; notice: string[]; models: HubModel[] }>("hub:catalogue", !!refresh),
   hubInstall: (slug: string, model: HubModel, accept?: boolean) => call<Job>("hub:install", slug, model, !!accept),
+  store: (refresh?: boolean) => call<StoreList>("store:list", !!refresh),
+  storeSkillAdd: (id: string) => call<StoreList>("store:skillAdd", id),
+  storeSkillRemove: (id: string) => call<StoreList>("store:skillRemove", id),
+  storeMcpAdd: (id: string, extra: string[], accept: boolean) => call<StoreList>("store:mcpAdd", id, extra, accept),
+  storeMcpRemove: (id: string) => call<StoreList>("store:mcpRemove", id),
   arcs: (refresh?: boolean) => call<ArcList>("arcs:list", !!refresh),
   arcUse: (id: string | null) => call<{ active: string | null; loaded: LoadedModel | null }>("arcs:use", id),
   arcInstall: (id: string, accept?: boolean) => call<Job>("arcs:install", id, !!accept),
