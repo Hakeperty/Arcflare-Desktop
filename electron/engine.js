@@ -575,15 +575,38 @@ function launchHarness(id, modelId) {
       detached: true, stdio: "ignore",
     }).unref();
   } else {
-    const terms = [["x-terminal-emulator", ["-e"]], ["gnome-terminal", ["--"]], ["konsole", ["-e"]], ["xterm", ["-e"]]];
-    for (const [t, pre] of terms) {
-      try {
-        spawn(t, [...pre, node, ARCFLARE_BIN, ...args], { env, detached: true, stdio: "ignore" }).unref();
-        break;
-      } catch { /* try the next terminal */ }
-    }
+    // Find a terminal that is really there before starting it. spawn() does not throw for a missing
+    // program (the failure arrives later, as an event), so trying them in a loop always "succeeded" with
+    // the first name, and on a system without x-terminal-emulator (Fedora, Arch) nothing opened at all.
+    const term = linuxTerminal();
+    if (!term) throw new Error("no terminal program was found to open the harness in. Install one (gnome-terminal, konsole, xterm…) or set TERMINAL to yours");
+    const child = spawn(term.cmd, [...term.pre, node, ARCFLARE_BIN, ...args], { env, detached: true, stdio: "ignore" });
+    child.on("error", () => {});
+    child.unref();
   }
   return true;
+}
+
+/** How each Linux terminal is told to run a command: the program, and what goes before the command. */
+const LINUX_TERMINALS = [
+  ["x-terminal-emulator", ["-e"]], ["gnome-terminal", ["--"]], ["ptyxis", ["--"]], ["kgx", ["--"]], ["konsole", ["-e"]],
+  ["xfce4-terminal", ["-x"]], ["tilix", ["-e"]], ["kitty", []], ["alacritty", ["-e"]], ["foot", []], ["wezterm", ["start", "--"]], ["xterm", ["-e"]],
+];
+
+/** The terminal to use on Linux: $TERMINAL when it names one that exists, else the first one installed. */
+function linuxTerminal({ env = process.env, has = onPathSync } = {}) {
+  const wanted = String(env.TERMINAL || "").trim();
+  if (wanted && has(wanted)) {
+    const known = LINUX_TERMINALS.find(([t]) => t === path.basename(wanted));
+    return { cmd: wanted, pre: known ? known[1] : ["-e"] };
+  }
+  const hit = LINUX_TERMINALS.find(([t]) => has(t));
+  return hit ? { cmd: hit[0], pre: hit[1] } : null;
+}
+
+function onPathSync(cmd) {
+  const r = require("child_process").spawnSync("which", [cmd], { encoding: "utf8", timeout: 5000 });
+  return r.status === 0 && !!String(r.stdout).trim();
 }
 
 // ------------------------------------------------------------------- misc ----
@@ -604,6 +627,7 @@ module.exports = {
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
   arcList, arcUse, arcInstall, activeArc, arcs,
   storeList, storeSkillAdd, storeSkillRemove, storeMcpAdd, storeMcpRemove,
+  linuxTerminal, LINUX_TERMINALS,
   harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };

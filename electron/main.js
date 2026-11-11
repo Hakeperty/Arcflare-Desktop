@@ -129,7 +129,7 @@ function agentTools(c) {
 }
 
 handle("sys:info", () => eng.systemInfo());
-require("./setup")(handle); // first-run wizard: setup:state/find/folder/done
+require("./setup")(handle, eng); // first-run wizard: setup:state/find/folder/install/done
 
 handle("settings:get", () => {
   const c = serve.loadConfig();
