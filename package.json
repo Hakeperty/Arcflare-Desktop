@@ -75,8 +75,27 @@
     },
     "linux": {
       "target": [
-        "AppImage",
-        "deb"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "pacman",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "Development",
       "icon": "build/icon.png",
@@ -95,6 +114,22 @@
     },
     "deb": {
       "artifactName": "ArcFlare-linux-${arch}.${ext}"
+    },
+    "pacman": {
+      "artifactName": "ArcFlare-linux-${arch}.${ext}",
+      "depends": [
+        "gtk3",
+        "nss",
+        "libnotify",
+        "libxss",
+        "libxtst",
+        "xdg-utils",
+        "at-spi2-core",
+        "util-linux-libs",
+        "libsecret",
+        "alsa-lib",
+        "mesa"
+      ]
     },
     "publish": [
       {

@@ -74,7 +74,7 @@ build from a clean machine, switch it to `github:Hakeperty/ArcFlare-Code`.
 ```bash
 npm run dist:win     # NSIS installer
 npm run dist:mac     # .dmg (build on a Mac)
-npm run dist:linux   # AppImage and .deb
+npm run dist:linux   # AppImage, .deb and Arch .pacman, for x64 and arm64 (pacman needs bsdtar)
 ```
 
 The engine is unpacked from the app archive, because Python workers can't read

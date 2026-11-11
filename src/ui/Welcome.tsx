@@ -132,6 +132,18 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const found = st?.pretendNoEngine ? null : info?.llamaServer;
+  // The one-button download: the engine picks the build for this machine and unpacks it.
+  const [jobId, setJobId] = useState<string | null>(null);
+  const job = useJob(jobId);
+  const installing = !!jobId && (!job || job.state === "running");
+  useEffect(() => {
+    if (job?.state === "done") { setup.find().catch(() => null).then(() => onRefresh()); setMsg("llama.cpp is installed."); }
+    if (job?.state === "failed") setMsg(`The download did not finish${job.error ? ` (${job.error})` : ""}. ${job.log.slice(-1)[0] ?? ""} You can still get it by hand below.`);
+  }, [job?.state]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function installIt() {
+    setMsg("");
+    try { const j = await setup.install(); setJobId(j.id); } catch (e) { setMsg((e as Error).message); }
+  }
 
   async function findIt() {
     setBusy(true); setMsg("");
@@ -186,10 +198,20 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
               <p className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
                 For your {st.gpu.name ?? "graphics card"}, get the <b>{st.build.backend}</b> build: {st.build.why}
               </p>
+              {st.canInstall && (
+                <div className="col" style={{ gap: 6, margin: "4px 0 10px" }}>
+                  <div className="row" style={{ gap: 8 }}>
+                    <button className="btn primary sm" disabled={installing} onClick={installIt}>{installing ? "downloading…" : "download it for me"}</button>
+                    <span className="dim" style={{ fontSize: 12 }}>from llama.cpp&apos;s official releases, into your ArcFlare folder</span>
+                  </div>
+                  {installing && <><div className="mono dim" style={{ fontSize: 11 }}>{job?.log.slice(-1)[0] ?? "starting…"}</div><Progress value={job?.progress ?? null} /></>}
+                </div>
+              )}
+              <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>{st.canInstall ? "Or by hand:" : "The file to get:"}</div>
               <div className="welcome-file">{st.build.file}</div>
               <ol className="welcome-howto">
                 <li><button className="linkbtn" onClick={() => api.openExternal(st.releases)}>Open the official releases page ↗</button> and download that file.</li>
-                <li><button className="linkbtn" onClick={() => setup.folder().catch(() => {})}>Open the folder</button> <span className="dim mono" style={{ fontSize: 11 }}>{st.build.folder}</span> and unzip it there.</li>
+                <li><button className="linkbtn" onClick={() => setup.folder().catch(() => {})}>Open the folder</button> <span className="dim mono" style={{ fontSize: 11 }}>{st.build.folder}</span> and unpack it there.</li>
                 <li>Come back and press <b>find it for me</b>.</li>
               </ol>
             </>

@@ -4,8 +4,9 @@
 // setup has been done. Everything else the wizard uses (system info, the hub,
 // downloads, loading, chat) is the app's existing IPC.
 //
-// There is no llama.cpp downloader in the engine, so none here either: the
-// wizard links the official releases and names the file to pick.
+// The engine can download llama.cpp itself (`arcflare engine install` picks the
+// build for this machine), so the wizard offers that as one button. Naming the
+// file and linking the official releases stays as the way to do it by hand.
 
 const fs = require("fs");
 const os = require("os");
@@ -32,6 +33,9 @@ function gpu() {
     } else if (process.platform === "linux") {
       const r = spawnSync("sh", ["-c", "lspci 2>/dev/null | grep -Ei 'vga|3d|display'"], { encoding: "utf8", timeout: 5000 });
       names = (r.stdout || "").split("\n").map((s) => s.replace(/^.*?: /, "").trim()).filter(Boolean);
+      // lspci is a package many systems do not have, and it is not there inside an AppImage's view of
+      // some hosts. The kernel always says who made each card.
+      if (!names.length) names = linuxCardsFromSys();
     } else if (process.platform === "darwin") {
       names = [os.cpus()[0]?.model?.includes("Apple") ? "Apple silicon" : "Mac GPU"];
     }
@@ -48,6 +52,20 @@ function gpu() {
   return gpuCache;
 }
 
+/** Linux: each graphics card's maker, from /sys/class/drm (PCI vendor ids). */
+function linuxCardsFromSys(root = "/sys/class/drm") {
+  const VENDORS = { "0x10de": "NVIDIA graphics", "0x1002": "AMD Radeon graphics", "0x8086": "Intel graphics" };
+  const out = [];
+  try {
+    for (const c of fs.readdirSync(root).filter((n) => /^card\d+$/.test(n))) {
+      let id = "";
+      try { id = fs.readFileSync(path.join(root, c, "device", "vendor"), "utf8").trim().toLowerCase(); } catch { continue; }
+      if (VENDORS[id] && !out.includes(VENDORS[id])) out.push(VENDORS[id]);
+    }
+  } catch { /* no /sys: not Linux, or a sandbox */ }
+  return out;
+}
+
 /**
  * Which llama.cpp release file fits this machine, in words a person can match
  * against the release page, and the folder ArcFlare looks in by default.
@@ -59,18 +77,32 @@ function suggestBuild(vendor) {
     return { backend: "metal", file: `llama-…-bin-macos-${process.arch === "arm64" ? "arm64" : "x64"}.zip`, why: "Macs use Metal, built into the macOS build.", folder: path.join(home, "llamacpp") };
   }
   const os_ = p === "win32" ? "win" : "ubuntu";
-  if (vendor === "nvidia") {
-    return { backend: "cuda", file: p === "win32" ? "llama-…-bin-win-cuda-12.4-x64.zip (and the cudart-…-12.4 zip next to it)" : "build from source with CUDA, or use the Vulkan build", why: "CUDA is fastest on NVIDIA cards.", folder: path.join(home, "llamacpp", "cuda") };
+  if (vendor === "nvidia" && p === "win32") {
+    return { backend: "cuda", file: "llama-…-bin-win-cuda-12.4-x64.zip (and the cudart-…-12.4 zip next to it)", why: "CUDA is fastest on NVIDIA cards.", folder: path.join(home, "llamacpp", "cuda") };
   }
+  // Linux releases are .tar.gz, named "ubuntu" but built to run on other distributions too. There is no
+  // ready-made CUDA build for Linux, and the Vulkan one runs on NVIDIA's own driver, so that is the one
+  // to get; building with CUDA from source is faster still, for anyone who wants to.
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
   return {
     backend: "vulkan",
-    file: `llama-…-bin-${os_}-vulkan-x64.zip`,
-    why: vendor === "amd" ? "Vulkan works on every recent AMD card without extra drivers." : vendor === "intel" ? "Vulkan runs on Intel graphics." : "Vulkan works on most graphics cards.",
+    file: p === "win32" ? "llama-…-bin-win-vulkan-x64.zip" : `llama-…-bin-${os_}-vulkan-${arch}.tar.gz`,
+    why: vendor === "nvidia" ? "Vulkan runs on NVIDIA's driver with nothing else to install. (Building llama.cpp with CUDA yourself is faster still.)"
+      : vendor === "amd" ? "Vulkan works on every recent AMD card without extra drivers." : vendor === "intel" ? "Vulkan runs on Intel graphics." : "Vulkan works on most graphics cards.",
     folder: path.join(home, "llamacpp", "vulkan"),
   };
 }
 
-module.exports = function registerSetup(handle) {
+module.exports = function registerSetup(handle, eng) {
+  // Can this engine download llama.cpp by itself? (`arcflare engine install`, engine 1.1 and later.)
+  const canInstall = (() => { try { require.resolve("arcflare/lib/engine-install"); return !!(eng && eng.cliJob); } catch { return false; } })();
+
+  // One button: the engine picks the build for this machine, downloads it, unpacks it and remembers it.
+  handle("setup:install", () => {
+    if (!canInstall) throw new Error("this version of the ArcFlare engine cannot download llama.cpp: get it from the releases page instead");
+    return eng.cliJob("setup", "Download llama.cpp", ["engine", "install"]);
+  });
+
   handle("setup:state", () => {
     const c = serve.loadConfig();
     const g = gpu();
@@ -82,6 +114,7 @@ module.exports = function registerSetup(handle) {
       pretendNoEngine: process.env.ARCFLARE_FORCE_SETUP === "noengine",
       gpu: g,
       build: suggestBuild(g.vendor),
+      canInstall,
       releases: RELEASES,
     };
   });
@@ -111,3 +144,5 @@ module.exports = function registerSetup(handle) {
     return true;
   });
 };
+module.exports.suggestBuild = suggestBuild;
+module.exports.linuxCardsFromSys = linuxCardsFromSys;

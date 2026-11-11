@@ -2,6 +2,10 @@
 # Push a tag like v0.1.0 (or run it by hand) and the release appears with:
 #   ArcFlare-Setup-x64.exe · ArcFlare-mac-arm64.dmg · ArcFlare-mac-x64.dmg
 #   ArcFlare-linux-x86_64.AppImage · ArcFlare-linux-amd64.deb
+#   ArcFlare-linux-arm64.AppImage · ArcFlare-linux-arm64.deb (ARM Linux: DGX Spark, Jetson, Raspberry Pi 5,
+#   ARM laptops). Both Linux architectures are built on the one x64 runner: the app has no native modules.
+#   ArcFlare-linux-x64.pacman · ArcFlare-linux-aarch64.pacman for Arch, and SHA256SUMS for all of them,
+#   which arcflare.net/install-desktop.sh checks every download against.
 # Names carry no version, so /releases/latest/download/<name> is a stable link
 # the website can point at.
 
@@ -53,6 +57,11 @@ jobs:
         working-directory: ArcFlare-Desktop
         run: npm ci
 
+      # electron-builder's pacman target packs with bsdtar, which the Ubuntu runner does not have.
+      - name: Tools for the Arch package
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools
+
       - name: Build installers
         working-directory: ArcFlare-Desktop
         env:
@@ -68,6 +77,7 @@ jobs:
             ArcFlare-Desktop/release/*.dmg
             ArcFlare-Desktop/release/*.AppImage
             ArcFlare-Desktop/release/*.deb
+            ArcFlare-Desktop/release/*.pacman
             ArcFlare-Desktop/release/*.blockmap
             ArcFlare-Desktop/release/latest*.yml
           if-no-files-found: error
@@ -81,6 +91,13 @@ jobs:
         with:
           path: out
           merge-multiple: true
+      # The website's installer refuses a download that does not match this list, and warns when there is none.
+      - name: Checksums
+        working-directory: out
+        run: |
+          shopt -s nullglob
+          sha256sum *.exe *.dmg *.AppImage *.deb *.pacman > SHA256SUMS
+          cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: out/*
@@ -93,8 +110,15 @@ jobs:
             | Windows 10/11 | `ArcFlare-Setup-x64.exe` |
             | macOS, Apple silicon | `ArcFlare-mac-arm64.dmg` |
             | macOS, Intel | `ArcFlare-mac-x64.dmg` |
-            | Linux (any) | `ArcFlare-linux-x86_64.AppImage` |
-            | Debian / Ubuntu | `ArcFlare-linux-amd64.deb` |
+            | Linux (any), x86_64 | `ArcFlare-linux-x86_64.AppImage` |
+            | Debian / Ubuntu, x86_64 | `ArcFlare-linux-amd64.deb` |
+            | Linux (any), ARM64 | `ArcFlare-linux-arm64.AppImage` |
+            | Debian / Ubuntu, ARM64 | `ArcFlare-linux-arm64.deb` |
+            | Arch, x86_64 | `ArcFlare-linux-x64.pacman` |
+            | Arch, ARM64 | `ArcFlare-linux-aarch64.pacman` |
+
+            Or on Linux and macOS: `curl -fsSL https://arcflare.net/install-desktop.sh | sh` picks the right file,
+            checks it against `SHA256SUMS`, and installs it.
 
             The builds are not code-signed yet. On Windows, choose **More info → Run anyway** in SmartScreen.
             On macOS, right-click the app and choose **Open** the first time.
