@@ -31,37 +31,59 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   );
 }
 
-export const Markdown = memo(function Markdown({ text }: { text: string }) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
-  const out: React.ReactNode[] = [];
+export type Chunk = { code: false; lines: string[] } | { code: true; lang: string; text: string };
+
+// Split lines into prose and fenced-code chunks. An unterminated fence (a reply
+// still streaming) runs to the end.
+export function splitFences(lines: string[]): Chunk[] {
+  const out: Chunk[] = [];
   let i = 0;
-  let k = 0;
   while (i < lines.length) {
-    const line = lines[i];
-    const fence = /^```\s*([\w+-]*)/.exec(line.trim());
+    // CommonMark: the info string of a backtick fence has no backtick, and a closing
+    // fence is at least as long as the opening one with only spaces after it.
+    const fence = /^(`{3,})\s*([\w+-]*)[^`]*$/.exec(lines[i].trim());
     if (fence) {
       const buf: string[] = [];
+      const close = new RegExp("^`{" + fence[1].length + ",}\\s*$");
       i++;
-      while (i < lines.length && !lines[i].trim().startsWith("```")) buf.push(lines[i++]);
+      while (i < lines.length && !close.test(lines[i].trim())) buf.push(lines[i++]);
       i++;
-      out.push(<CodeBlock key={k++} lang={fence[1]} code={buf.join("\n")} />);
+      out.push({ code: true, lang: fence[2], text: buf.join("\n") });
       continue;
     }
-    const h = /^(#{1,3})\s+(.*)$/.exec(line);
-    if (h) { out.push(<div key={k++} className={`md-h md-h${h[1].length}`}>{inline(h[2])}</div>); i++; continue; }
-    if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
-      const ordered = /^\s*\d+\./.test(line);
-      const items: string[] = [];
-      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ""));
-      const L = ordered ? "ol" : "ul";
-      out.push(<L key={k++} className="md-list">{items.map((it, j) => <li key={j}>{inline(it)}</li>)}</L>);
-      continue;
-    }
-    if (!line.trim()) { i++; continue; }
-    const para: string[] = [line];
+    const last = out[out.length - 1];
+    if (last && !last.code) last.lines.push(lines[i]);
+    else out.push({ code: false, lines: [lines[i]] });
     i++;
-    while (i < lines.length && lines[i].trim() && !/^```|^#{1,3}\s|^\s*([-*]|\d+\.)\s+/.test(lines[i])) para.push(lines[i++]);
-    out.push(<p key={k++} className="md-p">{inline(para.join("\n"))}</p>);
+  }
+  return out;
+}
+
+export const Markdown = memo(function Markdown({ text }: { text: string }) {
+  const out: React.ReactNode[] = [];
+  let k = 0;
+  for (const chunk of splitFences(text.replace(/\r\n/g, "\n").split("\n"))) {
+    if (chunk.code) { out.push(<CodeBlock key={k++} lang={chunk.lang} code={chunk.text} />); continue; }
+    const lines = chunk.lines;
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      const h = /^(#{1,3})\s+(.*)$/.exec(line);
+      if (h) { out.push(<div key={k++} className={`md-h md-h${h[1].length}`}>{inline(h[2])}</div>); i++; continue; }
+      if (/^\s*([-*]|\d+\.)\s+/.test(line)) {
+        const ordered = /^\s*\d+\./.test(line);
+        const items: string[] = [];
+        while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ""));
+        const L = ordered ? "ol" : "ul";
+        out.push(<L key={k++} className="md-list">{items.map((it, j) => <li key={j}>{inline(it)}</li>)}</L>);
+        continue;
+      }
+      if (!line.trim()) { i++; continue; }
+      const para: string[] = [line];
+      i++;
+      while (i < lines.length && lines[i].trim() && !/^#{1,3}\s|^\s*([-*]|\d+\.)\s+/.test(lines[i])) para.push(lines[i++]);
+      out.push(<p key={k++} className="md-p">{inline(para.join("\n"))}</p>);
+    }
   }
   return <div className="md selectable">{out}</div>;
 });
