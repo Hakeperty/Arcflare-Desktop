@@ -3,7 +3,7 @@
 // Rendered as React elements — never as HTML — so a model's output can't
 // inject markup into the app.
 
-import { Fragment, useState } from "react";
+import { Fragment, memo, useState } from "react";
 
 const INLINE = /(`[^`]+`|\*\*(?=\S)[^*]+\*\*|\*(?=\S)[^*]+\*)/g;
 
@@ -31,7 +31,7 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   );
 }
 
-export function Markdown({ text }: { text: string }) {
+export const Markdown = memo(function Markdown({ text }: { text: string }) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const out: React.ReactNode[] = [];
   let i = 0;
@@ -64,4 +64,4 @@ export function Markdown({ text }: { text: string }) {
     out.push(<p key={k++} className="md-p">{inline(para.join("\n"))}</p>);
   }
   return <div className="md selectable">{out}</div>;
-}
+});

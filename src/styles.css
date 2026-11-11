@@ -180,13 +180,18 @@ textarea, input, .selectable { user-select: text; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .led.busy, .progress.indet > i { animation: none; }
+  .led.busy, .progress.indet > i, .md-live .md > .md-p:last-child::after, .md-live .md > .md-list:last-child > li:last-child::after { animation: none; }
 }
 
 /* ------------------------------------------------------------ markdown */
 .md { line-height: 1.6; }
 .md-p { margin: 0 0 10px; white-space: pre-wrap; }
 .md-h { font-weight: 600; margin: 14px 0 6px; }
+/* The reply being written ends in a caret. */
+.md-live .md > .md-p:last-child::after, .md-live .md > .md-list:last-child > li:last-child::after {
+  content: ""; display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: -0.15em;
+  background: var(--accent); animation: pulse 1s steps(2, jump-none) infinite;
+}
 .md-h1 { font-size: 18px; } .md-h2 { font-size: 16px; } .md-h3 { font-size: 14px; }
 .md-list { margin: 0 0 10px; padding-left: 22px; }
 .md-list li::marker { color: var(--accent); }

@@ -194,8 +194,10 @@ async function chat(requestId, { messages, temperature, maxTokens }) {
       let buf = "";
       let text = "";
       let timings = null;
+      let failed = null;
+      res.setEncoding("utf8"); // a multi-byte character split across two chunks stays whole
       res.on("data", (d) => {
-        buf += d.toString();
+        buf += d;
         let i;
         while ((i = buf.indexOf("\n")) >= 0) {
           const line = buf.slice(0, i).trim();
@@ -205,6 +207,8 @@ async function chat(requestId, { messages, temperature, maxTokens }) {
           if (payload === "[DONE]") continue;
           try {
             const j = JSON.parse(payload);
+            // A failure in the middle of a reply (out of GPU memory, say) arrives as an error object.
+            if (j.error) { failed = String((j.error && j.error.message) || j.error).slice(0, 300); continue; }
             if (j.timings) timings = j.timings;
             const d0 = j.choices && j.choices[0] && j.choices[0].delta;
             if (!d0) continue;
@@ -215,6 +219,7 @@ async function chat(requestId, { messages, temperature, maxTokens }) {
       });
       res.on("end", () => {
         chats.delete(requestId);
+        if (failed) return reject(new Error(`the model failed: ${failed}`));
         resolve({
           text,
           tokPerSec: timings && timings.predicted_per_second ? Math.round(timings.predicted_per_second * 10) / 10 : null,
