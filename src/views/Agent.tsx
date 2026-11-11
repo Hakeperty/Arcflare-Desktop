@@ -11,11 +11,20 @@ import {
 } from "../lib/api";
 import { Markdown } from "../ui/md";
 import type { View } from "../App";
+import { baseName } from "../lib/path";
 
 const FOLDER = "arcflare.agent.folder";
 const MACHINE = "arcflare.agent.machine";
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* blocked */ } };
+
+// First tasks that are safe to try in any project: they read before they write.
+const AGENT_STARTERS = [
+  "Explain what this project does and how it is laid out",
+  "Find the tests, run them, and tell me what fails",
+  "Look for a bug you are confident about and show me before fixing it",
+  "Write a README from what the code actually does",
+];
 
 export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View) => void }) {
   const [session, setSession] = useState<AgentSession | null>(null);
@@ -122,7 +131,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   }
 
   const busy = !!session?.busy;
-  const name = session ? session.folder.split(/[\\/]/).filter(Boolean).pop() : "";
+  const name = session ? baseName(session.folder) : "";
 
   return (
     <div className="page flush" style={{ flexDirection: "column" }}>
@@ -187,22 +196,23 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
             <EmptyState seed="agent-folder" title="Point the agent at a folder"
               action={<>
                 <button className="btn primary" onClick={pick}>open a folder</button>
-                {recent.length > 0 && <button className="btn" onClick={() => openFolder(recent[0])}>reopen {recent[0].split(/[\/]/).filter(Boolean).pop()}</button>}
+                {recent.length > 0 && <button className="btn" onClick={() => openFolder(recent[0])}>reopen {baseName(recent[0])}</button>}
               </>}>
               The coding agent reads, edits and runs things in a folder you choose, using the model on this computer. It asks
               before running commands unless you switch on auto mode.
             </EmptyState>
           )}
           {session && !loaded && (
-            <EmptyState seed="agent-model" title="Load a model first"
+            <EmptyState mood="search" seed="agent-model" title="Load a model first"
               action={<><button className="btn primary" onClick={() => go("models")}>models</button><button className="btn" onClick={() => go("chat")}>chat</button></>}>
               The agent uses the model loaded in this app. A 20–35B coding model works best.
             </EmptyState>
           )}
           {session && loaded && session.items.length === 0 && (
-            <EmptyState seed={`agent-${name}`} title={`Ready in ${name}`}>
-              Ask for something: &quot;explain this project&quot;, &quot;fix the failing test&quot;, &quot;add a README&quot;.
-              It shows every file it reads and asks before running a command.
+            <EmptyState seed={`agent-${name}`} title={`Ready in ${name}`}
+              prompts={AGENT_STARTERS} onPrompt={setInput}>
+              It shows every file it reads and asks before running a command. Pick a first task to put it in the box
+              below, then change it or press send.
             </EmptyState>
           )}
           {session?.items.map((it, i) => (

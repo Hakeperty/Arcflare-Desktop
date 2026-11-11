@@ -153,14 +153,19 @@ async function ensureChatModel() {
 
 // ------------------------------------------------------------------- chat ----
 
-const chats = new Map(); // requestId -> http.ClientRequest
+const chats = new Map(); // requestId -> http.ClientRequest, or null while the model is still (re)loading
 
 /**
  * Stream a chat completion. Deltas go out as "chat:delta" events; resolves
  * with the final text and timings. `stop(requestId)` aborts it.
  */
 async function chat(requestId, { messages, temperature, maxTokens }) {
-  const m = await ensureChatModel();
+  // Registered before the model is ready, so a stop pressed while it reloads
+  // is remembered (stopChat removes the entry) instead of silently dropped.
+  chats.set(requestId, null);
+  let m;
+  try { m = await ensureChatModel(); } catch (e) { chats.delete(requestId); throw e; }
+  if (!chats.has(requestId)) throw new Error("stopped");
   // With an Arc chosen, its instructions go first and the chat's own system
   // prompt is added after them. They are put on here, in the main process, so
   // the page never holds them.
@@ -188,7 +193,7 @@ async function chat(requestId, { messages, temperature, maxTokens }) {
       if (res.statusCode >= 400) {
         let err = "";
         res.on("data", (d) => (err += d));
-        res.on("end", () => reject(new Error(`the model answered ${res.statusCode}: ${err.slice(0, 200)}`)));
+        res.on("end", () => { chats.delete(requestId); reject(new Error(`the model answered ${res.statusCode}: ${err.slice(0, 200)}`)); });
         return;
       }
       let buf = "";
@@ -227,7 +232,7 @@ async function chat(requestId, { messages, temperature, maxTokens }) {
           outputTokens: timings ? timings.predicted_n : null,
         });
       });
-      res.on("error", reject);
+      res.on("error", (e) => { chats.delete(requestId); reject(e); });
     });
     req.on("error", (e) => { chats.delete(requestId); reject(e); });
     chats.set(requestId, req);
@@ -237,7 +242,8 @@ async function chat(requestId, { messages, temperature, maxTokens }) {
 
 function stopChat(requestId) {
   const req = chats.get(requestId);
-  if (req) { req.destroy(new Error("stopped")); chats.delete(requestId); }
+  chats.delete(requestId);
+  if (req) req.destroy(new Error("stopped"));
 }
 
 /**
@@ -273,7 +279,7 @@ let jobSeq = 0;
 
 function newJob(kind, title, meta = {}) {
   const job = { id: `job${++jobSeq}`, kind, title, state: "running", stage: "starting", progress: null,
-    log: [], result: null, error: null, started: Date.now(), meta };
+    log: [], result: null, error: null, started: Date.now(), ended: null, meta };
   jobs.set(job.id, job);
   bus.emit("job:update", publicJob(job));
   return job;
@@ -285,7 +291,11 @@ function publicJob(j) {
 }
 
 function update(job, patch) {
+  // A finished job stays finished: a cancelled download's process still exits
+  // (with a failure code) afterwards, and that must not turn it into "failed".
+  if (job.state !== "running") return;
   Object.assign(job, patch);
+  if (job.state !== "running") job.ended = Date.now();
   bus.emit("job:update", publicJob(job));
 }
 
@@ -295,7 +305,19 @@ function logLine(job, line) {
   bus.emit("job:update", publicJob(job));
 }
 
-/** Run a CLI command as a job (pull, gen setup), streaming its output. */
+/**
+ * Why a CLI command failed, in its own words: the CLI marks the line that
+ * says so with a cross. "exited with code 1" tells a person nothing.
+ */
+function failureReason(log) {
+  for (let i = log.length - 1; i >= 0; i--) {
+    const m = /^\s*[✗x×]\s+(.+)/.exec(log[i]);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
+/** Run a CLI command as a job (pull, gen setup, engine install), streaming its output. */
 function cliJob(kind, title, args, meta) {
   const job = newJob(kind, title, meta);
   const child = spawn(process.execPath, [ARCFLARE_BIN, ...args], {
@@ -303,6 +325,7 @@ function cliJob(kind, title, args, meta) {
     windowsHide: true,
   });
   job.abort = () => { try { child.kill(); } catch { /* gone */ } };
+  child.on("error", (e) => update(job, { state: "failed", error: e.message }));
   const onData = (d) => {
     for (const raw of d.toString().split(/\r?\n|\r/)) {
       const line = raw.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").trimEnd();
@@ -316,7 +339,7 @@ function cliJob(kind, title, args, meta) {
   child.stderr.on("data", onData);
   child.on("close", (code) => update(job, code === 0
     ? { state: "done", progress: 100, stage: "done" }
-    : { state: "failed", error: `exited with code ${code}` }));
+    : { state: "failed", error: failureReason(job.log) || `exited with code ${code}` }));
   return publicJob(job);
 }
 
@@ -347,6 +370,7 @@ function studioJob(kind, title, run, needGb) {
   (async () => {
     try {
       if (await makeRoomFor(needGb || 0)) logLine(job, "freed the chat model's GPU memory for this job");
+      if (ac.signal.aborted) return; // cancelled before it started: don't start it
       const r = await run({
         signal: ac.signal,
         runner,
@@ -565,29 +589,25 @@ function harnessList() {
  * Open a harness in a real terminal window, pointed at a model. Harnesses are
  * terminal programs; the honest thing is to give them a terminal.
  */
-function launchHarness(id, modelId) {
+async function launchHarness(id, modelId) {
   const args = ["use", id, ...(modelId ? [modelId] : [])];
   const node = process.execPath;
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
   if (process.platform === "win32") {
     // A new console window titled ArcFlare, running the CLI with Electron's Node.
-    spawn("cmd.exe", ["/d", "/c", "start", '"ArcFlare"', node, ARCFLARE_BIN, ...args], {
-      env, detached: true, stdio: "ignore", windowsHide: false,
-    }).unref();
+    await spawnFirst([["cmd.exe", ["/d", "/c", "start", '"ArcFlare"', node, ARCFLARE_BIN, ...args]]],
+      { env, detached: true, stdio: "ignore", windowsHide: false });
   } else if (process.platform === "darwin") {
     const cmd = [node, ARCFLARE_BIN, ...args].map((a) => `'${String(a).replace(/'/g, "'\\''")}'`).join(" ");
-    spawn("osascript", ["-e", `tell application "Terminal" to do script "ELECTRON_RUN_AS_NODE=1 ${cmd.replace(/"/g, '\\"')}"`], {
-      detached: true, stdio: "ignore",
-    }).unref();
+    await spawnFirst([["osascript", ["-e", `tell application "Terminal" to do script "ELECTRON_RUN_AS_NODE=1 ${cmd.replace(/"/g, '\\"')}"`]]],
+      { detached: true, stdio: "ignore" });
   } else {
     // Find a terminal that is really there before starting it. spawn() does not throw for a missing
     // program (the failure arrives later, as an event), so trying them in a loop always "succeeded" with
     // the first name, and on a system without x-terminal-emulator (Fedora, Arch) nothing opened at all.
     const term = linuxTerminal();
     if (!term) throw new Error("no terminal program was found to open the harness in. Install one (gnome-terminal, konsole, xterm…) or set TERMINAL to yours");
-    const child = spawn(term.cmd, [...term.pre, node, ARCFLARE_BIN, ...args], { env, detached: true, stdio: "ignore" });
-    child.on("error", () => {});
-    child.unref();
+    await spawnFirst([[term.cmd, [...term.pre, node, ARCFLARE_BIN, ...args]]], { env, detached: true, stdio: "ignore" });
   }
   return true;
 }
@@ -614,11 +634,40 @@ function onPathSync(cmd) {
   return r.status === 0 && !!String(r.stdout).trim();
 }
 
+/**
+ * Start the first of `commands` ([file, args] pairs) that exists, detached.
+ * spawn() reports a missing program as an "error" event, not an exception:
+ * with nothing listening that event is an uncaught exception in the main
+ * process, and a try/catch around spawn never gets to try the next one.
+ */
+function spawnFirst(commands, options) {
+  return new Promise((resolve, reject) => {
+    const tryNext = (i, lastError) => {
+      if (i >= commands.length) return reject(lastError || new Error("nothing to run"));
+      const [file, args] = commands[i];
+      let child;
+      try { child = spawn(file, args, options); } catch (e) { return tryNext(i + 1, e); }
+      const onError = (e) => tryNext(i + 1, e);
+      child.once("error", onError);
+      child.once("spawn", () => {
+        child.off("error", onError);
+        child.on("error", () => {}); // it started; a later error is not ours to act on
+        child.unref();
+        resolve(file);
+      });
+    };
+    tryNext(0, null);
+  });
+}
+
 // ------------------------------------------------------------------- misc ----
 
 function cancelJob(id) {
   const j = jobs.get(id);
-  if (j && j.abort) { j.abort(); update(j, { state: "cancelled" }); }
+  if (!j || j.state !== "running") return;
+  // Mark it first: the abort can fail the job synchronously.
+  update(j, { state: "cancelled" });
+  if (j.abort) j.abort();
 }
 
 function shutdown({ stopServer = true } = {}) {
@@ -633,6 +682,6 @@ module.exports = {
   arcList, arcUse, arcInstall, activeArc, arcs,
   storeList, storeSkillAdd, storeSkillRemove, storeMcpAdd, storeMcpRemove,
   linuxTerminal, LINUX_TERMINALS,
-  harnessList, launchHarness, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
+  harnessList, launchHarness, spawnFirst, failureReason, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };

@@ -100,7 +100,7 @@ module.exports = function registerSetup(handle, eng) {
   // One button: the engine picks the build for this machine, downloads it, unpacks it and remembers it.
   handle("setup:install", () => {
     if (!canInstall) throw new Error("this version of the ArcFlare engine cannot download llama.cpp: get it from the releases page instead");
-    return eng.cliJob("setup", "Download llama.cpp", ["engine", "install"]);
+    return eng.cliJob("engine", "Download llama.cpp", ["engine", "install"]);
   });
 
   handle("setup:state", () => {

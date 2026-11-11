@@ -10,7 +10,7 @@
   --surface-3: #222220;
   --fg: #edeae2;
   --muted: #a09d93;
-  --muted-2: #8a877e;
+  --muted-2: #98958b;
   --border: #2a2a27;
   --border-strong: #44443f;
   --accent: #ffb020;
@@ -44,6 +44,7 @@ textarea, input, .selectable { user-select: text; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border: 2px solid var(--bg); }
 ::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
 
 /* ------------------------------------------------------------------ shell */
 
@@ -69,11 +70,13 @@ textarea, input, .selectable { user-select: text; }
 }
 .nav:hover { color: var(--fg); background: var(--surface); }
 .nav.on { color: var(--fg); border-color: var(--border); background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); }
-.nav .k { margin-left: auto; font-size: 10px; color: var(--muted-2); }
-.nav-group { margin: 14px 10px 4px; font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
+.nav .k { margin-left: auto; font-size: 11px; color: var(--muted-2); }
+/* A count in a nav row must not make the row taller than its neighbours. */
+.nav .chip { padding: 0 6px; font-size: 10px; line-height: 14px; }
+.nav-group { margin: 14px 10px 4px; font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
 
 .main { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-.page { flex: 1; overflow-y: auto; padding: 22px 26px 40px; }
+.page { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 26px 40px; }
 .page.flush { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 
 .statusbar {
@@ -120,9 +123,14 @@ textarea, input, .selectable { user-select: text; }
   font: 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; white-space: nowrap;
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.btn:disabled { opacity: .4; cursor: default; }
+.btn:disabled, fieldset:disabled .btn { opacity: .4; cursor: default; pointer-events: none; }
+/* A fieldset used only to switch a group of controls off together. */
+fieldset.plain { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.mascot.center { align-self: center; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0b0a; font-weight: 600; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-bright); color: #0b0b0a; }
+/* Dimming amber leaves dark text on brown; a disabled action is a quiet outline instead. */
+.btn.primary:disabled { opacity: 1; background: var(--surface-2); border-color: var(--border-strong); color: var(--muted-2); font-weight: 400; }
 .btn.ghost { border-color: transparent; color: var(--muted); }
 .btn.ghost:hover:not(:disabled) { color: var(--fg); border-color: var(--border); }
 .btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
@@ -134,9 +142,18 @@ textarea, input, .selectable { user-select: text; }
   font: 13px var(--mono);
 }
 .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+/* The dropdown in the app's own style: square, with an amber chevron, not the system's. */
+.select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 30px; text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23ffb020' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.select:hover { border-color: var(--border-strong); }
+.select:disabled { cursor: default; opacity: .6; }
+.select option { background: var(--surface); color: var(--fg); }
 .textarea { resize: vertical; min-height: 64px; font-family: var(--sans); font-size: 14px; line-height: 1.5; }
 .field { display: flex; flex-direction: column; gap: 5px; }
-.field > span { font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
+.field > span { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted-2); }
 
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 14px; background: var(--bg); flex: none; }
 .tab {
@@ -221,6 +238,8 @@ textarea, input, .selectable { user-select: text; }
 /* Native controls in the accent colour instead of the browser's blue. */
 input[type="checkbox"], input[type="radio"], input[type="range"], progress { accent-color: var(--accent); }
 :focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+/* Text fields already show focus on their border; a second ring around it doubled the line. */
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: none; }
 
 /* Quiet, quick transitions on things you point at. */
 .btn, .nav, .card, .tab, .chip, .agent-tool-h { transition: border-color .12s, color .12s, background-color .12s; }
@@ -236,18 +255,53 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 .marks::before { left: -1px; top: -1px; border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); }
 .marks::after { right: -1px; bottom: -1px; border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); }
 
+/* Inside a scrolling box the marks sit on the edge, not past it (which made scrollbars). */
+.modal.marks::before { left: 0; top: 0; }
+.modal.marks::after { right: 0; bottom: 0; }
+
 /* Cards that go somewhere lift their border and show the corner marks. */
 .card.click { position: relative; }
 .card.click::before, .card.click::after { content: ""; position: absolute; width: 8px; height: 8px; opacity: 0; transition: opacity .12s; pointer-events: none; }
 .card.click::before { left: -1px; top: -1px; border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); }
 .card.click::after { right: -1px; bottom: -1px; border-right: 1px solid var(--accent); border-bottom: 1px solid var(--accent); }
-.card.click:hover::before, .card.click:hover::after { opacity: 1; }
+.card.click:hover::before, .card.click:hover::after,
+.card.click:focus-visible::before, .card.click:focus-visible::after { opacity: 1; }
+.card.click:focus-visible { border-color: var(--accent); outline-offset: 3px; }
+.card.click:focus-visible .go { color: var(--accent); }
 .card .go { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); margin-top: 12px; }
 .card.click:hover .go { color: var(--accent); }
 
 /* Empty states: a small dot-matrix picture, a title, a line, an action. */
 .empty-state { border: 1px dashed var(--border-strong); padding: 26px 24px 24px; text-align: center; max-width: 560px; margin: 24px auto; background: var(--bg); }
-.empty-art { display: block; width: 220px; height: 60px; margin: 0 auto 14px; opacity: .85; }
+.empty-scene { display: flex; flex-direction: column; align-items: center; margin-bottom: 14px; }
+.empty-scene .mascot { align-self: center; }
+.empty-art { display: block; width: 150px; height: 16px; margin: -4px auto 0; opacity: .6; }
+/* The panda: line art, never stretched, never selectable. */
+.mascot { display: block; width: auto; flex: none; align-self: flex-start; user-select: none; pointer-events: none; }
+.banner-panda { position: absolute !important; right: 28px; bottom: 0; }
+/* What the panda says: a speech bubble that is also the button for it. */
+.banner-say {
+  all: unset; box-sizing: border-box; position: absolute !important; right: 236px; top: 30px; width: 240px;
+  display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border-strong); font-size: 13px; line-height: 1.45; color: var(--fg);
+}
+.banner-say::after { /* the tail, pointing at the panda */
+  content: ""; position: absolute; right: -6px; top: 30px; width: 10px; height: 10px; background: var(--bg);
+  border-top: 1px solid var(--border-strong); border-right: 1px solid var(--border-strong); transform: rotate(45deg);
+}
+.banner-say .go { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.banner-say:hover, .banner-say:focus-visible { border-color: var(--accent); }
+.banner-say:hover::after, .banner-say:focus-visible::after { border-color: var(--accent); }
+@media (max-width: 1340px) { .banner-say { display: none; } }
+/* Things to try, under an empty state. */
+.starters { display: flex; flex-direction: column; gap: 6px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); text-align: left; }
+.starters .label { margin-bottom: 2px; }
+.starter { all: unset; box-sizing: border-box; cursor: pointer; padding: 8px 10px; border: 1px solid var(--border); background: var(--surface); font-size: 13px; color: var(--muted); }
+.starter::before { content: "› "; color: var(--accent); }
+.starter:hover, .starter:focus-visible { border-color: var(--accent); color: var(--fg); }
+.welcome-panda { margin: 0 0 10px 2px; }
+.welcome-done { float: right; margin: -6px -4px 0 12px; }
+@media (max-width: 900px) { .banner-panda { display: none; } }
 .empty-title { font-weight: 600; font-size: 15px; }
 .empty-body { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.55; }
 
@@ -258,16 +312,20 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress { acc
 .meter.ok > i { background: var(--accent-2); }
 .meter.warn > i { background: var(--accent); }
 .meter.bad > i { background: var(--danger); }
-.meter-label { font: 10.5px var(--mono); color: var(--muted-2); margin-top: 4px; }
+.meter-label { font: 11px var(--mono); color: var(--muted-2); margin-top: 4px; }
 
 /* Home banner. */
 .banner { position: relative; overflow: hidden; border: 1px solid var(--border); background: var(--surface); padding: 22px 24px; margin-bottom: 16px; }
 .banner-art { position: absolute; inset: 0 0 0 auto; width: 55%; height: 100%; opacity: .55;
-  -webkit-mask-image: linear-gradient(to left, #000 35%, transparent); mask-image: linear-gradient(to left, #000 35%, transparent); }
+  /* Faint behind the panda on the right, full in the middle, gone by the text: the pattern is the
+     backdrop and the line art in front of it stays readable. */
+  -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 30%, #000 52%, transparent);
+  mask-image: linear-gradient(to left, rgba(0,0,0,.18) 0, rgba(0,0,0,.18) 30%, #000 52%, transparent); }
 .banner > :not(.banner-art) { position: relative; }
 
 /* Model rows. */
 .model-row { display: grid; grid-template-columns: auto minmax(0, 1fr) 180px auto; align-items: center; gap: 14px; }
+.model-row > .btn { min-width: 70px; } /* "load" and "chat →" the same width, so the meters line up */
 .model-row.loaded { border-color: color-mix(in srgb, var(--accent-2) 55%, var(--border)); box-shadow: inset 2px 0 0 var(--accent-2); }
 
 /* Sidebar: the section label gets a hairline, the active item a brighter bar. */
@@ -286,9 +344,10 @@ input[type="color"]::-webkit-color-swatch { border: none; }
 
 /* ---------------------------------------------------- first-run wizard ---- */
 .welcome-back { z-index: 80; background: rgba(0, 0, 0, .7); }
+.app:has(.welcome-back) .banner-panda { visibility: hidden; }
 .welcome { display: grid; grid-template-columns: 220px 1fr; width: min(980px, 94vw); height: min(640px, 90vh); background: var(--bg); border: 1px solid var(--border-strong, var(--border)); }
 .welcome-rail { display: flex; flex-direction: column; padding: 18px; border-right: 1px solid var(--border); background: var(--surface); min-height: 0; }
-.welcome-art { width: 100%; height: 56px; margin-bottom: 12px; }
+.welcome-art { width: 100%; height: 20px; margin: -8px 0 12px; opacity: .7; }
 .welcome-brand { font: 600 18px var(--mono); }
 .welcome-brand b { color: var(--accent); font-weight: 600; }
 .welcome-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -320,6 +379,8 @@ input[type="color"]::-webkit-color-swatch { border: none; }
 /* ------------------------------------------------------ glossary terms ---- */
 .term { position: relative; border-bottom: 1px dotted var(--muted-2); cursor: help; }
 .term:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+/* Text fields already show focus on their border; a second ring around it doubled the line. */
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: none; }
 .term-tip { position: absolute; left: 0; top: calc(100% + 6px); z-index: 90; width: 260px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--accent); font: 12.5px/1.5 var(--sans, system-ui); color: var(--muted); text-transform: none; letter-spacing: normal; white-space: normal; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
 .term-tip b { display: block; color: var(--fg); margin-bottom: 4px; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }

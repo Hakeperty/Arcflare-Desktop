@@ -5,15 +5,28 @@
 
 name: test
 
+# Pushes run it on main only: a branch with a pull request is covered by the
+# pull_request run, so it is no longer tested twice per push.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_call:
+
+# A newer push to the same branch or pull request replaces the run in progress.
+# A release calls this with its tag as the ref, so it never shares a group
+# with a branch run.
+concurrency:
+  group: test-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       # The app depends on the engine as file:../ArcFlare-Code, so check both
       # out side by side, like a local setup.
@@ -28,6 +41,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: ArcFlare-Desktop/package-lock.json
+
+      # npm ci downloads the Electron binary (about 100 MB) unless it is here.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('ArcFlare-Desktop/package-lock.json') }}
 
       - name: Install
         working-directory: ArcFlare-Desktop

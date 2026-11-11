@@ -50,7 +50,7 @@ function Local({ loaded, progress, go, freeGb }: { loaded: LoadedModel | null; p
         </div>
       )}
       {list.length === 0 && (
-        <EmptyState seed="no-models" title="No models yet">Open the <b>hub</b> tab, pick one that fits your GPU, and download it.</EmptyState>
+        <EmptyState mood="search" seed="no-models" title="No models yet">Open the <b>hub</b> tab, pick one that fits your GPU, and download it.</EmptyState>
       )}
       <div className="col" style={{ gap: 8 }}>
         {list.map((m) => {
@@ -317,7 +317,7 @@ export function Hub() {
           </div>
         ))}
       </div>
-      {shown.length === 0 && <EmptyState seed="hub-empty" title="Nothing on this shelf">Try another category, or &quot;All&quot;.</EmptyState>}
+      {shown.length === 0 && <EmptyState mood="search" seed="hub-empty" title="Nothing on this shelf">Try another category, or &quot;All&quot;.</EmptyState>}
     </>
   );
 }

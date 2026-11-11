@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, on, uid, type HubModel, type LocalModel, type ModelProgress, type SystemInfo } from "../lib/api";
 import { setup, type SetupState } from "../lib/setup";
-import { DotArt, Label, Meter, Progress, Spec, useJob } from "./kit";
+import { DotArt, Label, Mascot, Meter, Progress, Spec, useJob } from "./kit";
 import { Term } from "./Term";
 import type { View } from "../App";
 
@@ -43,6 +43,9 @@ export function Welcome({ info, onRefresh, onClose, go }: {
   }, [onClose]);
 
   const idx = STEPS.findIndex((s) => s.id === step);
+  // A tick means the step is really done, not just that it was skipped past.
+  const stepDone = (id: Step, i: number) => i < idx
+    && (id === "engine" ? !!info?.llamaServer && !st?.pretendNoEngine : id === "model" ? !!info?.loaded : true);
   const next = () => setStep(STEPS[Math.min(STEPS.length - 1, idx + 1)].id);
   const finish = async (v?: View) => {
     await setup.done(true).catch(() => {});
@@ -55,14 +58,16 @@ export function Welcome({ info, onRefresh, onClose, go }: {
     <div className="modal-back welcome-back">
       <div className="welcome" role="dialog" aria-label="Set up ArcFlare">
         <aside className="welcome-rail">
-          <DotArt seed="arcflare-welcome" cols={22} rows={8} className="welcome-art" />
+          <Mascot mood={step === "hello" ? "hello" : "search"} size={104} className="welcome-panda" />
+          <DotArt seed="arcflare-welcome" cols={22} rows={3} className="welcome-art" />
           <div className="welcome-brand">arc<b>flare</b></div>
           <div className="dim" style={{ fontSize: 12, marginBottom: 18 }}>set up in four steps</div>
           <ol className="welcome-steps">
             {STEPS.map((s, i) => (
               <li key={s.id}>
-                <button className={`welcome-step${s.id === step ? " on" : i < idx ? " done" : ""}`} onClick={() => setStep(s.id)}>
-                  <span className="n">{i < idx ? "✓" : `0${i + 1}`}</span> {s.label}
+                <button className={`welcome-step${s.id === step ? " on" : stepDone(s.id, i) ? " done" : ""}`} onClick={() => setStep(s.id)}
+                  aria-current={s.id === step ? "step" : undefined}>
+                  <span className="n">{stepDone(s.id, i) ? "✓" : `0${i + 1}`}</span> {s.label}
                 </button>
               </li>
             ))}
@@ -114,7 +119,7 @@ function MachineStep({ info, st, onNext }: { info: SystemInfo | null; st: SetupS
       </StepHead>
       <div className="panel" style={{ padding: 16 }}>
         <dl className="col" style={{ gap: 8, margin: 0 }}>
-          <Spec k="graphics" v={st?.gpu.name ?? "…"} />
+          <Spec k="graphics" v={st ? (st.gpu.name ?? "no name reported") : "…"} />
           <Spec k={<>free <Term k="vram">vram</Term></>} v={free != null ? `${free} GB${total ? ` of ${total}` : ""}` : "not measured yet"} />
           {free != null && total ? <Meter need={total - free} of={total} label={`${(total - free).toFixed(1)} GB already in use`} /> : null}
           <Spec k="memory (ram)" v={info ? `${info.ramGb} GB` : "…"} />
@@ -159,9 +164,11 @@ function EngineStep({ info, st, onRefresh, onNext }: { info: SystemInfo | null; 
     const exe = platformExe();
     const p = await api.pickFile({ title: `Choose llama-server${exe}`, filters: exe ? [{ name: "llama-server", extensions: ["exe"] }] : [] }).catch(() => null);
     if (!p) return;
-    await api.saveSettings({ llamaServer: p });
-    setMsg(`Saved: ${p}`);
-    onRefresh();
+    try {
+      await api.saveSettings({ llamaServer: p });
+      setMsg(`Saved: ${p}`);
+      onRefresh();
+    } catch (e) { setMsg((e as Error).message); }
   }
 
   if (found) {
@@ -402,7 +409,8 @@ function HelloStep({ info, onFinish }: { info: SystemInfo | null; onFinish: (v?:
           : "Load a model in the previous step and it will say hello here."}
       </StepHead>
       <div className="welcome-hello">
-        <div className="dim mono" style={{ fontSize: 11, marginBottom: 6 }}>{loaded ? loaded.name : "no model"} says</div>
+        {state === "done" && <Mascot mood="cheeky" size={84} className="welcome-done" />}
+        <div className="dim mono" style={{ fontSize: 11, marginBottom: 6 }}>{loaded ? `${loaded.name} says` : "no model loaded yet"}</div>
         <div className="welcome-hello-text">{text || (state === "talking" ? "…" : "")}{state === "talking" && <span className="caret" />}</div>
         {speed ? <div className="dim mono" style={{ fontSize: 11, marginTop: 8 }}>{speed.toFixed(1)} <Term k="toks">tok/s</Term> on this machine</div> : null}
         {err && <p className="welcome-msg err">{err}</p>}

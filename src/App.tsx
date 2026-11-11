@@ -120,7 +120,11 @@ export function App() {
 
         <main className="main">
           {view === "home" && <Home info={info} loaded={loaded} go={setView} jobs={jobs} setupDone={setupDone} openSetup={() => setWelcome(true)} />}
-          {view === "chat" && <Chat loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />}
+          {/* Chat stays mounted: a reply that is still streaming keeps arriving
+              (and can still be stopped) while another screen is open. */}
+          <div style={{ display: view === "chat" ? "contents" : "none" }}>
+            <Chat active={view === "chat"} loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />
+          </div>
           {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
           {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
@@ -145,7 +149,7 @@ export function App() {
         <span className="row" style={{ gap: 6 }}>
           <span className={`led ${info?.serverRunning ? "on" : "off"}`} /> server {info?.serverRunning ? "up" : "idle"}
         </span>
-        <span>gpu {info?.gpu.freeGb ?? "?"} / {info?.gpu.totalGb ?? "?"} GB free</span>
+        <span>{gpuText(info)}</span>
         {loaded && <span>ctx {Math.round(loaded.ctx / 1024)}K</span>}
         {progress && loadingNow && <span style={{ color: "var(--accent)" }}>{progressText(progress)}</span>}
         <span className="sp" />
@@ -155,6 +159,13 @@ export function App() {
       </footer>
     </div>
   );
+}
+
+/** Free GPU memory for the status bar, without a "?" for what isn't known. */
+function gpuText(info: SystemInfo | null): string {
+  const free = info?.gpu.freeGb, total = info?.gpu.totalGb;
+  if (free == null) return info ? "gpu memory unknown" : "gpu …";
+  return total ? `gpu ${free} / ${total} GB free` : `gpu ${free} GB free`;
 }
 
 export function progressText(p: ModelProgress): string {

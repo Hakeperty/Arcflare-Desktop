@@ -20,13 +20,13 @@ permissions:
   contents: write
 
 jobs:
-  # Nothing is built or released unless typecheck, unit, contract and smoke
-  # tests pass on this commit.
+  # Nothing is released unless typecheck, unit, contract and smoke tests pass
+  # on this commit. The installers build at the same time as the tests run
+  # (they take longer), and the release job below waits for both.
   test:
     uses: ./.github/workflows/test.yml
 
   build:
-    needs: test
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +52,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: ArcFlare-Desktop/package-lock.json
 
       - name: Install
         working-directory: ArcFlare-Desktop
@@ -83,7 +85,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: build
+    needs: [test, build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

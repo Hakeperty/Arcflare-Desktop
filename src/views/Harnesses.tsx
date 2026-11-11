@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Harness, type LoadedModel } from "../lib/api";
-import { ViewHead } from "../ui/kit";
+import { ViewHead, pressable } from "../ui/kit";
 
 const ABOUT: Record<string, string> = {
   agent: "ArcFlare's own coding agent: reads and edits files, runs commands (it asks first), uses MCP tools and skills.",
@@ -14,17 +14,21 @@ const ABOUT: Record<string, string> = {
   codex: "OpenAI's Codex CLI, pointed at your local model instead of the cloud.",
 };
 
+// Each tool's own install command, kept in one place: the website.
+const INSTALL_HELP = "https://arcflare.net/harnesses";
+
 export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
   const [list, setList] = useState<Harness[]>([]);
   const [msg, setMsg] = useState("");
-  useEffect(() => { api.harnesses().then(setList).catch((e) => setMsg(e.message)); }, []);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { api.harnesses().then(setList).catch((e) => { setFailed(true); setMsg(e.message); }); }, []);
 
   async function launch(h: Harness) {
-    setMsg("");
+    setMsg(""); setFailed(false);
     try {
       await api.launchHarness(h.id, loaded?.id);
       setMsg(`${h.label} is opening in a terminal window${loaded ? ` with ${loaded.name}` : " with your last model"}.`);
-    } catch (e) { setMsg((e as Error).message); }
+    } catch (e) { setFailed(true); setMsg(`${h.label} could not be opened: ${(e as Error).message}`); }
   }
 
   return (
@@ -33,19 +37,20 @@ export function Harnesses({ loaded }: { loaded: LoadedModel | null }) {
         Already use a coding agent? Open it here and it talks to the model on your GPU instead of a cloud API. ArcFlare
         writes its config (backing up yours first) and opens it in a terminal.
       </ViewHead>
-      {msg && <div className="panel" style={{ padding: 10, marginBottom: 12, borderColor: "var(--accent-2)" }}>{msg}</div>}
+      {msg && <div className="panel" role="status" style={{ padding: 10, marginBottom: 12, borderColor: failed ? "var(--danger)" : "var(--accent-2)" }}>{msg}</div>}
       <div className="grid3">
         {list.map((h) => (
-          <div key={h.id} className={`card col${h.installed ? " click" : ""}`} style={{ gap: 0 }} onClick={() => h.installed && launch(h)}>
+          <div key={h.id} className="card col click" style={{ gap: 0 }}
+            {...pressable(() => (h.installed ? launch(h) : api.openExternal(INSTALL_HELP).catch(() => {})))}>
             <div className="row">
               <span className={`led ${h.installed ? "on" : "off"}`} />
               <span className="h2 grow">{h.label}</span>
               {h.builtin && <span className="chip">built in</span>}
             </div>
-            <p className="muted" style={{ fontSize: 13, flex: 1 }}>{ABOUT[h.id] || ""}</p>
+            <p className="muted" style={{ fontSize: 13, flex: 1 }}>{ABOUT[h.id] || `${h.label}, pointed at your local model.`}</p>
             {h.installed
               ? <div className="go">open in a terminal →</div>
-              : <div className="go" style={{ color: "var(--muted-2)" }}>not installed</div>}
+              : <div className="go">not installed · how to get it →</div>}
           </div>
         ))}
       </div>
