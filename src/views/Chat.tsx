@@ -9,6 +9,7 @@ import { progressText, type View } from "../App";
 import { Term } from "../ui/Term";
 import { createBatcher, createSpeedMeter } from "../lib/stream";
 import { startersFor } from "../lib/starters";
+import { filterConvos, convoToMarkdown } from "../lib/chats";
 
 type Turn = ChatMessage & { id: string; reasoning?: string; tokPerSec?: number | null; error?: string };
 type Convo = { id: string; title: string; system: string; turns: Turn[]; created: number };
@@ -24,17 +25,21 @@ function saveConvos(c: Convo[]) {
 }
 const newConvo = (): Convo => ({ id: uid(), title: "New chat", system: DEFAULT_SYSTEM, turns: [], created: Date.now() });
 
-export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhone }: {
+export function Chat({ active, loaded, progress, go, remote, phoneChat, newChat, openPhone }: {
   /** False while another screen is showing (this one stays mounted, hidden). */
   active: boolean;
   loaded: LoadedModel | null; progress: ModelProgress | null; go: (v: View) => void;
-  remote: RcStatus | null; phoneChat: number; openPhone: () => void;
+  remote: RcStatus | null; phoneChat: number; /** Bumped by the command palette to start a new chat. */ newChat: number; openPhone: () => void;
 }) {
   const [phoneMode, setPhoneMode] = useState(phoneChat > 0);
   useEffect(() => { if (phoneChat > 0) setPhoneMode(true); }, [phoneChat]);
   const [convos, setConvos] = useState<Convo[]>(() => { const c = loadConvos(); return c.length ? c : [newConvo()]; });
   const [activeId, setActiveId] = useState(() => convos[0].id);
+  const [filter, setFilter] = useState("");
   const [input, setInput] = useState("");
+  useEffect(() => {
+    if (newChat > 0) { const c = newConvo(); setConvos((cs) => [c, ...cs]); setActiveId(c.id); setPhoneMode(false); setFilter(""); }
+  }, [newChat]);
   const [busy, setBusy] = useState<string | null>(null); // requestId while streaming
   const [models, setModels] = useState<LocalModel[]>([]);
   const [pick, setPick] = useState("");
@@ -147,6 +152,17 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
     try { await api.loadModel(pick); } catch (e) { setLoadErr((e as Error).message); }
   }
 
+  const shown = useMemo(() => filterConvos(convos, filter), [convos, filter]);
+  function exportMd() {
+    const md = convoToMarkdown(convo, loaded?.name);
+    const name = (convo.title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim() || "chat") + ".md";
+    const url = URL.createObjectURL(new Blob([md], { type: "text/markdown;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   const loadingNow = progress && !["loaded", "failed"].includes(progress.stage);
   const picked = useMemo(() => models.find((m) => m.id === pick), [models, pick]);
 
@@ -154,10 +170,12 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
     <div className="page flush" style={{ flexDirection: "row" }}>
       {/* conversations */}
       <aside style={{ width: 230, borderRight: "1px solid var(--border)", display: "flex", flexDirection: "column", minHeight: 0 }}>
-        <div style={{ padding: 10 }}>
-          <button className="btn" style={{ width: "100%" }} onClick={() => { const c = newConvo(); setConvos((cs) => [c, ...cs]); setActiveId(c.id); setPhoneMode(false); }}>
+        <div className="col" style={{ padding: 10, gap: 8 }}>
+          <button className="btn" style={{ width: "100%" }} onClick={() => { const c = newConvo(); setConvos((cs) => [c, ...cs]); setActiveId(c.id); setPhoneMode(false); setFilter(""); }}>
             + new chat
           </button>
+          <input className="input" type="search" value={filter} placeholder="Search chats" aria-label="Search chats"
+            onChange={(e) => setFilter(e.target.value)} />
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
           <div className={`nav${phoneMode ? " on" : ""}`} style={{ fontSize: 12 }} {...pressable(() => setPhoneMode(true))} title="The conversation your phone sees">
@@ -165,7 +183,8 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
             <span className="grow truncate">phone</span>
             {remote?.on && remote.clients > 0 && <span className="dim">{remote.clients}</span>}
           </div>
-          {convos.map((c) => (
+          {shown.length === 0 && <div className="dim" style={{ padding: "8px 12px", fontSize: 12 }}>No chats match.</div>}
+          {shown.map((c) => (
             <div key={c.id} className={`nav${!phoneMode && c.id === convo.id ? " on" : ""}`} style={{ fontFamily: "var(--sans)", fontSize: 13 }}
               {...pressable(() => { setActiveId(c.id); setPhoneMode(false); })}>
               <span className="grow truncate">{c.title}</span>
@@ -196,6 +215,7 @@ export function Chat({ active, loaded, progress, go, remote, phoneChat, openPhon
           <span className="grow" />
           {arcName && <button className="chip ok" style={{ cursor: "pointer", background: "none" }} onClick={() => go("models")}
             title="This chat runs under an Arc's instructions. Anything in the system prompt box is added after them. Change it in Models → Arcs.">{arcName}</button>}
+          <button className="btn sm" title="Save this chat as a Markdown file" onClick={exportMd} disabled={convo.turns.length === 0}>export</button>
           <button className={`btn sm${showSystem ? " on" : ""}`} onClick={() => setShowSystem((v) => !v)}>{arcName ? "your additions" : "system prompt"}</button>
           {models.length === 0 && <button className="btn sm" onClick={() => go("models")}>get a model</button>}
         </div>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Palette } from "./ui/Palette";
 import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInfo } from "./lib/api";
 import { useJobs } from "./ui/kit";
 import { Home } from "./views/Home";
@@ -66,10 +67,24 @@ export function App() {
     return () => offs.forEach((f) => f());
   }, []);
 
+  // Ctrl/Cmd + K opens the command palette.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [newChat, setNewChat] = useState(0); // bump to start a new chat
+  const mac = platform() === "darwin";
+  const paletteItems = useMemo(() => [
+    ...NAV.map((n) => ({ id: n.id as string, label: `Go to ${n.label}`, hint: `${mac ? "⌘" : "Ctrl "}${n.key}` })),
+    { id: "new-chat", label: "New chat" },
+  ], [mac]);
+  const runPalette = (id: string) => {
+    if (id === "new-chat") { setView("chat"); setNewChat((n) => n + 1); }
+    else setView(id as View);
+  };
+
   // Ctrl/Cmd + 1..9 switch views, like tabs in a browser.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key.toLowerCase() === "k" && !e.shiftKey && !e.altKey) { e.preventDefault(); setPaletteOpen((o) => !o); return; }
       const n = NAV.find((x) => x.key === e.key);
       if (n) { e.preventDefault(); setView(n.id); }
     };
@@ -77,7 +92,6 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const mac = platform() === "darwin";
   const loadingNow = progress && !["loaded", "failed"].includes(progress.stage);
 
   return (
@@ -87,6 +101,9 @@ export function App() {
         <span>{"//"} {view}</span>
         <span className="grow" />
         <UpdatePill status={update} />
+        <button className="palette-hint nodrag" onClick={() => setPaletteOpen(true)} title="Open the command palette" aria-label="Open the command palette">
+          {mac ? "⌘" : "Ctrl"} K
+        </button>
         <PhoneButton status={remote} onClick={() => setPhoneOpen(true)} />
         {loaded ? (
           <span className="row nodrag" style={{ gap: 6 }} title={`${loaded.id} · ${loaded.ctx} ctx`}>
@@ -123,7 +140,7 @@ export function App() {
           {/* Chat stays mounted: a reply that is still streaming keeps arriving
               (and can still be stopped) while another screen is open. */}
           <div style={{ display: view === "chat" ? "contents" : "none" }}>
-            <Chat active={view === "chat"} loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} openPhone={() => setPhoneOpen(true)} />
+            <Chat active={view === "chat"} loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} newChat={newChat} openPhone={() => setPhoneOpen(true)} />
           </div>
           {view === "agent" && <Agent loaded={loaded} go={setView} />}
           {view === "studio" && <Studio loaded={loaded} />}
@@ -134,6 +151,8 @@ export function App() {
           {view === "settings" && <Settings info={info} update={update} openSetup={() => setWelcome(true)} />}
         </main>
       </div>
+
+      {paletteOpen && <Palette items={paletteItems} onRun={runPalette} onClose={() => setPaletteOpen(false)} />}
 
       {welcome && (
         <Welcome info={info} onRefresh={refreshInfo} go={setView}

@@ -212,6 +212,19 @@ try {
   await evaluate(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "1", ctrlKey: true })), true`);
   await until(viewOk("home"), "Ctrl+1 to show home");
   results.push({ name: "ctrl+1 shortcut", ok: true, errs: [] });
+  // The command palette: Ctrl+K opens it, typing filters, Enter goes there, and it closes behind itself.
+  await evaluate(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true })), true`);
+  await until(`!!document.querySelector(".palette-input") && document.querySelectorAll(".palette-row").length > ${VIEWS.length}`, "Ctrl+K to open the palette");
+  await evaluate(`(() => {
+    const i = document.querySelector(".palette-input");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(i, "sett");
+    i.dispatchEvent(new Event("input", { bubbles: true }));
+    return true;
+  })()`);
+  await until(`document.querySelectorAll(".palette-row").length === 1`, "the palette to filter down to one row");
+  await evaluate(`document.querySelector(".palette-input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })), true`);
+  await until(`${viewOk("settings")} && !document.querySelector(".palette-input")`, "Enter in the palette to show settings and close it");
+  results.push({ name: "ctrl+k palette", ok: true, errs: [] });
 } catch (e) {
   failed = true;
   results.push({ name: "run", ok: false, errs: [String(e && e.message || e)] });

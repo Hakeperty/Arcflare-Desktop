@@ -176,6 +176,10 @@ module.exports = function createAgents(eng) {
         upsert(s, item);
         return;
       }
+      case "guard":
+        // The engine's loop guard cut the model's thinking (lib/agent/loopguard.js); the step is asked again.
+        upsert(s, { id: id(), kind: "note", text: `stopped ${ev.kind === "think-cap" ? "long thinking" : "a repeated thought"} after about ${ev.tokens} tokens${ev.final ? "" : "; asked the model to act"}` });
+        return;
       case "compact":
         upsert(s, { id: id(), kind: "note", text: `context compacted (${ev.actions.length} change${ev.actions.length === 1 ? "" : "s"}) to stay inside the window` });
         return;
