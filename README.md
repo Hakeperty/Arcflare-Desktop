@@ -50,6 +50,12 @@ no chat model loaded, a keyword parser handles the common requests.
 - **The 3D view renders on demand.** It draws when something changes, not 60 times
   a second, so it isn't competing with generation for the GPU.
 - **No styling framework at runtime.** One plain stylesheet.
+- **Screens load when you open them.** Home and Chat are in the first bundle (274 kB); every other
+  screen is fetched on first use, and three.js (653 kB) only when the 3D tab is opened. Before, all
+  of it (1,025 kB) was read at start.
+- **What the memory is.** Measured on Linux at idle, the app takes about 312 MB across its
+  processes, and an empty Electron window takes about 264 MB by the same measure. So roughly 48 MB
+  is ArcFlare and the rest is Electron itself.
 
 ## Develop
 

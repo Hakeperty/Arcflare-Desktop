@@ -1,19 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Palette } from "./ui/Palette";
 import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInfo } from "./lib/api";
 import { useJobs } from "./ui/kit";
 import { Home } from "./views/Home";
 import { Chat } from "./views/Chat";
-import { Agent } from "./views/Agent";
-import { Studio } from "./views/Studio";
-import { Models } from "./views/Models";
-import { Store } from "./views/Store";
-import { Harnesses } from "./views/Harnesses";
-import { Settings } from "./views/Settings";
-import { Jobs } from "./views/Jobs";
 import { PhoneButton, PhonePanel, useRemote } from "./ui/Phone";
 import { UpdatePill, useUpdates } from "./ui/Update";
-import { Welcome } from "./ui/Welcome";
+
+// Home and Chat are in the first bundle. Every other screen, and the first-run wizard, is fetched the first
+// time it is opened, so its code (three.js above all) is not parsed or held in memory until it is wanted.
+const Agent = lazy(() => import("./views/Agent").then((m) => ({ default: m.Agent })));
+const Studio = lazy(() => import("./views/Studio").then((m) => ({ default: m.Studio })));
+const Models = lazy(() => import("./views/Models").then((m) => ({ default: m.Models })));
+const Store = lazy(() => import("./views/Store").then((m) => ({ default: m.Store })));
+const Harnesses = lazy(() => import("./views/Harnesses").then((m) => ({ default: m.Harnesses })));
+const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m.Settings })));
+const Jobs = lazy(() => import("./views/Jobs").then((m) => ({ default: m.Jobs })));
+const Welcome = lazy(() => import("./ui/Welcome").then((m) => ({ default: m.Welcome })));
+/** A screen that may still be loading. Each has its own boundary, so Chat (always mounted) is never hidden by one. */
+const Later = ({ children }: { children: ReactNode }) => <Suspense fallback={null}>{children}</Suspense>;
 import { setup } from "./lib/setup";
 
 export type View = "home" | "chat" | "agent" | "studio" | "models" | "store" | "harnesses" | "jobs" | "settings";
@@ -142,21 +147,23 @@ export function App() {
           <div style={{ display: view === "chat" ? "contents" : "none" }}>
             <Chat active={view === "chat"} loaded={loaded} progress={progress} go={setView} remote={remote} phoneChat={phoneChat} newChat={newChat} openPhone={() => setPhoneOpen(true)} />
           </div>
-          {view === "agent" && <Agent loaded={loaded} go={setView} />}
-          {view === "studio" && <Studio loaded={loaded} />}
-          {view === "models" && <Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} />}
-          {view === "store" && <Store loaded={loaded} go={setView} />}
-          {view === "harnesses" && <Harnesses loaded={loaded} />}
-          {view === "jobs" && <Jobs jobs={jobs} />}
-          {view === "settings" && <Settings info={info} update={update} openSetup={() => setWelcome(true)} />}
+          {view === "agent" && <Later><Agent loaded={loaded} go={setView} /></Later>}
+          {view === "studio" && <Later><Studio loaded={loaded} /></Later>}
+          {view === "models" && <Later><Models loaded={loaded} progress={progress} go={setView} freeGb={info?.gpu.freeGb ?? null} /></Later>}
+          {view === "store" && <Later><Store loaded={loaded} go={setView} /></Later>}
+          {view === "harnesses" && <Later><Harnesses loaded={loaded} /></Later>}
+          {view === "jobs" && <Later><Jobs jobs={jobs} /></Later>}
+          {view === "settings" && <Later><Settings info={info} update={update} openSetup={() => setWelcome(true)} /></Later>}
         </main>
       </div>
 
       {paletteOpen && <Palette items={paletteItems} onRun={runPalette} onClose={() => setPaletteOpen(false)} />}
 
       {welcome && (
-        <Welcome info={info} onRefresh={refreshInfo} go={setView}
-          onClose={(finished) => { setWelcome(false); if (finished) setSetupDone(true); refreshInfo(); }} />
+        <Later>
+          <Welcome info={info} onRefresh={refreshInfo} go={setView}
+            onClose={(finished) => { setWelcome(false); if (finished) setSetupDone(true); refreshInfo(); }} />
+        </Later>
       )}
 
       {phoneOpen && (
