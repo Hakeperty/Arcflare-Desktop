@@ -1,0 +1,27 @@
+[package]
+name = "arcflare-lite"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "ArcFlare Lite: a tiny chat app for low-powered computers (old laptops, Raspberry Pi), talking to llama.cpp's llama-server"
+
+[lib]
+name = "arcflare_lite"
+
+[[bin]]
+name = "arcflare-lite"
+path = "src/main.rs"
+
+[dependencies]
+ctrlc = { version = "3.5.2", features = ["termination"] }
+fltk = "1.5.23"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", default-features = false }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

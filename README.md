@@ -26,6 +26,12 @@ the `arcflare` command never disagree, and they share one settings file
 | **Arcs** | Models → Arcs: ArcFlare's own models. Each is an open base (Apache-2.0 or MIT) picked for your free VRAM, running under ArcFlare's instructions. **Use** loads the base and sets the Arc for Chat and the Agent; its instructions are added in the main process and never shown. The choice is the same `arc` setting `arcflare arcs use` writes. |
 | **Harnesses** | Open OpenCode, Hermes, Codex or the ArcFlare agent in a terminal, already pointed at your model. |
 
+## ArcFlare Lite
+
+For old laptops, Raspberry Pi and other small computers there is a separate app in [`lite/`](lite/):
+chat only, written in Rust, about 13 MB of memory where this app takes about 312 MB. It is made for
+weak machines and works best there; on a capable computer this app does far more.
+
 ## How editing a 3D model works
 
 Generated meshes are welded on load, so neighbouring faces share vertices. A

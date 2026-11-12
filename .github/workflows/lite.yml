@@ -1,0 +1,73 @@
+# ArcFlare Lite (lite/): the small Rust app for low-powered computers.
+# Builds and tests it on Linux x64, Linux ARM (Raspberry Pi and the like) and
+# Windows, and opens its window once on a virtual display. Each run keeps the
+# binary it built as an artifact; nothing is released from here.
+
+name: lite
+
+on:
+  push:
+    paths: ["lite/**", ".github/workflows/lite.yml"]
+  pull_request:
+    paths: ["lite/**", ".github/workflows/lite.yml"]
+
+concurrency:
+  group: lite-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+          - os: windows-latest
+            name: windows-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: lite
+    steps:
+      - uses: actions/checkout@v4
+
+      # FLTK is built from source by the fltk crate; on Linux it needs the X11 and Pango headers.
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libx11-dev libxext-dev libxft-dev libxinerama-dev libxcursor-dev libxfixes-dev libxrender-dev \
+            libpango1.0-dev libcairo2-dev libfontconfig1-dev xvfb
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            lite/target
+          key: lite-${{ matrix.name }}-${{ hashFiles('lite/Cargo.lock') }}
+
+      - run: cargo test --locked
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo build --locked --release
+
+      # The real window, once: build it, run the event loop briefly, exit. Fails if anything panics.
+      - name: Open the window on a virtual display
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ./target/release/arcflare-lite --self-test
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arcflare-lite-${{ matrix.name }}
+          path: |
+            lite/target/release/arcflare-lite
+            lite/target/release/arcflare-lite.exe
+          if-no-files-found: error
