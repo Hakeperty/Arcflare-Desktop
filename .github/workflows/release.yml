@@ -24,6 +24,11 @@ on:
 permissions:
   contents: read
 
+# Two quick pushes to main must not both release the same version: the second waits for the first.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # Which version to release, if any: the pushed v* tag, or on main the version in package.json when it has no tag
   # yet. Releases 0.1.0 to 0.5.0 needed a tag pushed by hand; none was pushed after 0.5.0, so the app had no update
@@ -49,9 +54,10 @@ jobs:
             if [ "$tag" != "v$version" ]; then echo "::error::tag $tag does not match package.json ($version)"; exit 1; fi
           elif [ "$GITHUB_REF" = refs/heads/main ]; then
             tag=v$version
-            if git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/$tag" >/dev/null; then
-              echo "$tag is already released; nothing to do"; exit 0
-            fi
+            # Exit 2 is "no such tag". Anything else (a network error) must not release a version twice.
+            rc=0; git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/$tag" >/dev/null || rc=$?
+            if [ "$rc" = 0 ]; then echo "$tag is already released; nothing to do"; exit 0; fi
+            if [ "$rc" != 2 ]; then echo "::error::could not ask GitHub whether $tag exists (git exit $rc)"; exit 1; fi
           else
             exit 0
           fi
