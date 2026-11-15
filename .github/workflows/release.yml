@@ -1,5 +1,7 @@
-# Builds the installers on each OS and attaches them to a GitHub release.
-# Push a tag like v0.1.0 (or run it by hand) and the release appears with:
+# Builds the installers on each OS and attaches them to a GitHub release, which the app's updater reads.
+# A release happens by itself when a version bump reaches main ("Desktop 0.6.0: ..." changes package.json and adds
+# release-notes/0.6.0.md): this workflow sees that v0.6.0 has no tag yet, builds, and publishes it. Pushing a tag
+# like v0.6.0 by hand still works. Run by hand, it only builds. The release appears with:
 #   ArcFlare-Setup-x64.exe · ArcFlare-mac-arm64.dmg · ArcFlare-mac-x64.dmg
 #   ArcFlare-linux-x86_64.AppImage · ArcFlare-linux-amd64.deb
 #   ArcFlare-linux-arm64.AppImage · ArcFlare-linux-arm64.deb (ARM Linux: DGX Spark, Jetson, Raspberry Pi 5,
@@ -14,6 +16,7 @@ name: release
 on:
   push:
     tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
 
 # Read-only by default: the build jobs run npm install scripts, so they get no
@@ -21,14 +24,57 @@ on:
 permissions:
   contents: read
 
+# Two quick pushes to main must not both release the same version: the second waits for the first.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # Which version to release, if any: the pushed v* tag, or on main the version in package.json when it has no tag
+  # yet. Releases 0.1.0 to 0.5.0 needed a tag pushed by hand; none was pushed after 0.5.0, so the app had no update
+  # to find for five weeks. Every version needs its release notes, and a tag must match package.json, because the
+  # updater compares the version in latest.yml (from package.json) with the one it runs.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            package.json
+            release-notes
+          sparse-checkout-cone-mode: false
+      - id: v
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag=${GITHUB_REF#refs/tags/}
+            if [ "$tag" != "v$version" ]; then echo "::error::tag $tag does not match package.json ($version)"; exit 1; fi
+          elif [ "$GITHUB_REF" = refs/heads/main ]; then
+            tag=v$version
+            # Exit 2 is "no such tag". Anything else (a network error) must not release a version twice.
+            rc=0; git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY" "refs/tags/$tag" >/dev/null || rc=$?
+            if [ "$rc" = 0 ]; then echo "$tag is already released; nothing to do"; exit 0; fi
+            if [ "$rc" != 2 ]; then echo "::error::could not ask GitHub whether $tag exists (git exit $rc)"; exit 1; fi
+          else
+            exit 0
+          fi
+          if [ ! -s "release-notes/$version.md" ]; then echo "::error::release-notes/$version.md is missing"; exit 1; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
   # Nothing is released unless typecheck, unit, contract and smoke tests pass
   # on this commit. The installers build at the same time as the tests run
   # (they take longer), and the release job below waits for both.
   test:
+    needs: version
+    if: needs.version.outputs.tag != '' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/test.yml
 
   build:
+    needs: version
+    if: needs.version.outputs.tag != '' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -89,12 +135,18 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [test, build]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, test, build]
+    if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # Only the notes file, never project code: this job holds a write token.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: release-notes
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v4
         with:
           path: out
@@ -106,27 +158,36 @@ jobs:
           shopt -s nullglob
           sha256sum *.exe *.dmg *.AppImage *.deb *.pacman > SHA256SUMS
           cat SHA256SUMS
+      - name: Release notes
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          { cat "release-notes/${TAG#v}.md"; echo; cat <<'TABLE'
+          Download the file for your system:
+
+          | System | File |
+          |---|---|
+          | Windows 10/11 | `ArcFlare-Setup-x64.exe` |
+          | macOS, Apple silicon | `ArcFlare-mac-arm64.dmg` |
+          | macOS, Intel | `ArcFlare-mac-x64.dmg` |
+          | Linux (any), x86_64 | `ArcFlare-linux-x86_64.AppImage` |
+          | Debian / Ubuntu, x86_64 | `ArcFlare-linux-amd64.deb` |
+          | Linux (any), ARM64 | `ArcFlare-linux-arm64.AppImage` |
+          | Debian / Ubuntu, ARM64 | `ArcFlare-linux-arm64.deb` |
+          | Arch, x86_64 | `ArcFlare-linux-x64.pacman` |
+          | Arch, ARM64 | `ArcFlare-linux-aarch64.pacman` |
+
+          Or on Linux and macOS: `curl -fsSL https://arcflare.net/install-desktop.sh | sh` picks the right file,
+          checks it against `SHA256SUMS`, and installs it.
+
+          The builds are not code-signed yet. On Windows, choose **More info → Run anyway** in SmartScreen.
+          On macOS, right-click the app and choose **Open** the first time.
+          TABLE
+          } > body.md
+          cat body.md
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: out/*
-          generate_release_notes: true
-          body: |
-            Download the file for your system:
-
-            | System | File |
-            |---|---|
-            | Windows 10/11 | `ArcFlare-Setup-x64.exe` |
-            | macOS, Apple silicon | `ArcFlare-mac-arm64.dmg` |
-            | macOS, Intel | `ArcFlare-mac-x64.dmg` |
-            | Linux (any), x86_64 | `ArcFlare-linux-x86_64.AppImage` |
-            | Debian / Ubuntu, x86_64 | `ArcFlare-linux-amd64.deb` |
-            | Linux (any), ARM64 | `ArcFlare-linux-arm64.AppImage` |
-            | Debian / Ubuntu, ARM64 | `ArcFlare-linux-arm64.deb` |
-            | Arch, x86_64 | `ArcFlare-linux-x64.pacman` |
-            | Arch, ARM64 | `ArcFlare-linux-aarch64.pacman` |
-
-            Or on Linux and macOS: `curl -fsSL https://arcflare.net/install-desktop.sh | sh` picks the right file,
-            checks it against `SHA256SUMS`, and installs it.
-
-            The builds are not code-signed yet. On Windows, choose **More info → Run anyway** in SmartScreen.
-            On macOS, right-click the app and choose **Open** the first time.
+          body_path: body.md
