@@ -108,7 +108,8 @@ function findModel(id) {
 
 /** Load a chat model, reporting each step on the bus as "model:progress". */
 async function loadModel(id, opts = {}) {
-  if (state.loading) await state.loading.catch(() => {});
+  // A loop, not an if: a third load must also wait for the second.
+  while (state.loading) await state.loading.catch(() => {});
   const m = findModel(id);
   if (!m) throw new Error(`no model "${id}"`);
   const run = (async () => {
@@ -132,7 +133,7 @@ async function loadModel(id, opts = {}) {
     return state.loaded;
   })();
   state.loading = run;
-  try { return await run; } finally { state.loading = null; }
+  try { return await run; } finally { if (state.loading === run) state.loading = null; }
 }
 
 function unloadModel() {

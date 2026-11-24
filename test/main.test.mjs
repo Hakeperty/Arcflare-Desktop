@@ -133,6 +133,31 @@ test("stop pressed while the model is still being checked or reloaded stops the 
   await assert.rejects(p, /stopped/);
 });
 
+test("three model loads in a row run one at a time", async () => {
+  const models = require("arcflare/lib/models");
+  const serve = require("arcflare/lib/serve");
+  const real = { discover: models.discover, resolve: models.resolve, load: serve.loadModel, save: serve.saveConfig };
+  let running = 0, most = 0;
+  models.discover = () => [];
+  models.resolve = (_, id) => ({ id, meta: {} });
+  serve.saveConfig = () => {};
+  serve.loadModel = async () => {
+    most = Math.max(most, ++running);
+    await sleep(20);
+    running--;
+    return { servedId: "x", port: 1, ctx: 4096 };
+  };
+  try {
+    const loaded = await Promise.all(["a:q4", "b:q4", "c:q4"].map((id) => eng.loadModel(id)));
+    assert.equal(most, 1);
+    assert.deepEqual(loaded.map((l) => l.id), ["a:q4", "b:q4", "c:q4"]);
+    assert.equal(eng.state.loading, null);
+  } finally {
+    models.discover = real.discover; models.resolve = real.resolve; serve.loadModel = real.load; serve.saveConfig = real.save;
+    eng.state.loaded = null;
+  }
+});
+
 // ---------------------------------------------------------------- comfyui ----
 
 test("a ComfyUI workflow takes a multi-line prompt with quotes", async () => {
