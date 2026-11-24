@@ -271,7 +271,7 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, showSel]); // eslint-disable-line react-hooks/exhaustive-deps -- showSel: undo and redo repaint with it
 
   useEffect(() => { refreshColours(parts.current, showSel); viewer.current?.requestRender(); }, [showSel]);
 
