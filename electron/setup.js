@@ -11,7 +11,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const { execFile } = require("child_process");
 const { shell } = require("electron");
 
 const serve = require("arcflare/lib/serve");
@@ -21,18 +21,27 @@ const RELEASES = "https://github.com/ggml-org/llama.cpp/releases/latest";
 
 let gpuCache = null;
 
-/** The graphics card's name and vendor, from the OS. Cached; never throws. */
+// Output of a program, or "" (missing, failed or timed out). Asynchronous: PowerShell
+// can take seconds to start, and the window must not freeze meanwhile.
+const output = (cmd, args, timeout) => new Promise((resolve) =>
+  execFile(cmd, args, { encoding: "utf8", timeout, windowsHide: true }, (_e, stdout) => resolve(stdout || "")));
+
+/** The graphics card's name and vendor, from the OS. Cached; never rejects. */
 function gpu() {
-  if (gpuCache) return gpuCache;
+  if (!gpuCache) gpuCache = detectGpu();
+  return gpuCache;
+}
+
+async function detectGpu() {
   let names = [];
   try {
     if (process.platform === "win32") {
-      const r = spawnSync("powershell.exe", ["-NoProfile", "-Command",
-        "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"], { encoding: "utf8", timeout: 8000, windowsHide: true });
-      names = (r.stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      const out = await output("powershell.exe", ["-NoProfile", "-Command",
+        "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"], 8000);
+      names = out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
     } else if (process.platform === "linux") {
-      const r = spawnSync("sh", ["-c", "lspci 2>/dev/null | grep -Ei 'vga|3d|display'"], { encoding: "utf8", timeout: 5000 });
-      names = (r.stdout || "").split("\n").map((s) => s.replace(/^.*?: /, "").trim()).filter(Boolean);
+      const out = await output("sh", ["-c", "lspci 2>/dev/null | grep -Ei 'vga|3d|display'"], 5000);
+      names = out.split("\n").map((s) => s.replace(/^.*?: /, "").trim()).filter(Boolean);
       // lspci is a package many systems do not have, and it is not there inside an AppImage's view of
       // some hosts. The kernel always says who made each card.
       if (!names.length) names = linuxCardsFromSys();
@@ -48,8 +57,7 @@ function gpu() {
     : /intel/i.test(pick) ? "intel"
     : /apple/i.test(pick) || process.platform === "darwin" ? "apple"
     : "unknown";
-  gpuCache = { name: pick, vendor };
-  return gpuCache;
+  return { name: pick, vendor };
 }
 
 /** Linux: each graphics card's maker, from /sys/class/drm (PCI vendor ids). */
@@ -103,9 +111,9 @@ module.exports = function registerSetup(handle, eng) {
     return eng.cliJob("engine", "Download llama.cpp", ["engine", "install"]);
   });
 
-  handle("setup:state", () => {
+  handle("setup:state", async () => {
     const c = serve.loadConfig();
-    const g = gpu();
+    const g = await gpu();
     return {
       done: !!c.setupDone && !process.env.ARCFLARE_FORCE_SETUP,
       forced: !!process.env.ARCFLARE_FORCE_SETUP,
@@ -131,7 +139,7 @@ module.exports = function registerSetup(handle, eng) {
 
   // Make the suggested folder and open it, so unzipping lands where we look.
   handle("setup:folder", async () => {
-    const g = gpu();
+    const g = await gpu();
     const dir = suggestBuild(g.vendor).folder;
     fs.mkdirSync(dir, { recursive: true });
     await shell.openPath(dir);
