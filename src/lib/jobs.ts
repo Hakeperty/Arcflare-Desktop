@@ -6,22 +6,12 @@
 // fetched once as well.
 
 import { api, on, type Job } from "./api";
+import { follow } from "./order";
 
 /** Call `cb` with the job's state now and on every change. Returns the unsubscribe. */
 export function watchJob(id: string, cb: (j: Job) => void): () => void {
-  let live = true;
-  let seen = false;
-  const off = on("job:update", (j: Job) => {
-    if (j.id !== id) return;
-    seen = true;
-    cb(j);
-  });
-  api.jobs().then((all) => {
-    const j = all.find((x) => x.id === id);
-    // An event that arrived meanwhile is at least as new as this snapshot.
-    if (live && !seen && j) cb(j);
-  }).catch(() => { /* the events still arrive */ });
-  return () => { live = false; off(); };
+  return follow((fn) => on("job:update", (j: Job) => { if (j.id === id) fn(j); }),
+    () => api.jobs().then((all) => all.find((x) => x.id === id)), cb);
 }
 
 /** Resolve with the job once it is done; reject when it fails or is cancelled. */

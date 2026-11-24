@@ -4,14 +4,11 @@
 
 import { useEffect, useState } from "react";
 import { api, on, updates, type UpdateStatus } from "../lib/api";
+import { follow } from "../lib/order";
 
 export function useUpdates(): UpdateStatus | null {
   const [s, setS] = useState<UpdateStatus | null>(null);
-  useEffect(() => {
-    let seen = false;   // an event is at least as new as the first read
-    updates.status().then((x) => { if (!seen) setS(x); }).catch(() => {});
-    return on("update:status", (x: UpdateStatus) => { seen = true; setS(x); });
-  }, []);
+  useEffect(() => follow((fn) => on("update:status", fn), updates.status, setS), []);
   return s;
 }
 

@@ -3,15 +3,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { on, rc, type RcStatus } from "../lib/api";
+import { follow } from "../lib/order";
 
 /** Live remote-control status, shared by the title bar, the panel and Chat. */
 export function useRemote(): RcStatus | null {
   const [s, setS] = useState<RcStatus | null>(null);
-  useEffect(() => {
-    let seen = false;   // an event is at least as new as the first read
-    rc.status().then((x) => { if (!seen) setS(x); }).catch(() => {});
-    return on("rc:status", (x: RcStatus) => { seen = true; setS(x); });
-  }, []);
+  useEffect(() => follow((fn) => on("rc:status", fn), rc.status, setS), []);
   return s;
 }
 
