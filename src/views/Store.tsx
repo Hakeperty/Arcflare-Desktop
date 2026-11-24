@@ -3,7 +3,7 @@
 // `arcflare store`, so what is added here is there for the command line too.
 // Models are the hub and the Arcs, which already have their own screens.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type LoadedModel, type LocalSkill, type StoreList, type StoreMcp, type StoreSkill } from "../lib/api";
 import { EmptyState, ViewHead } from "../ui/kit";
 import { Markdown } from "../ui/md";
@@ -19,9 +19,13 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   const load = (refresh?: boolean) => api.store(refresh).then(setData).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
 
-  const run = async (fn: () => Promise<StoreList>) => {
+  // One change at a time, so "add all" or quick clicks show the list from the last change, not whichever reply came last.
+  const queue = useRef(Promise.resolve());
+  const run = (fn: () => Promise<StoreList>) => {
     setErr("");
-    try { setData(await fn()); } catch (e) { setErr((e as Error).message); }
+    queue.current = queue.current.then(async () => {
+      try { setData(await fn()); } catch (e) { setErr((e as Error).message); }
+    });
   };
 
   return (
