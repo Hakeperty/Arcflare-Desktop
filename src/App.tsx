@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInfo } from "./lib/api";
 import { useJobs } from "./ui/kit";
+import { tickets } from "./lib/order";
 import { Home } from "./views/Home";
 import { Chat } from "./views/Chat";
 import { Agent } from "./views/Agent";
@@ -49,9 +50,16 @@ export function App() {
   // Counts model:loaded/unloaded events: a slow system info read that started
   // before one of them must not put back the model state it replaced.
   const modelEvents = useRef(0);
+  // Only the newest system info read is shown, so an older one cannot put back stale free VRAM.
+  const infoRead = useRef(tickets()).current;
   const refreshInfo = () => {
     const n = modelEvents.current;
-    return api.systemInfo().then((i) => { setInfo(i); if (n === modelEvents.current) setLoaded(i.loaded); }).catch(() => {});
+    const newest = infoRead();
+    return api.systemInfo().then((i) => {
+      if (!newest()) return;
+      setInfo(i);
+      if (n === modelEvents.current) setLoaded(i.loaded);
+    }).catch(() => {});
   };
 
   // System info now and every 15 s: free VRAM moves as models load and unload.
@@ -64,11 +72,11 @@ export function App() {
   useEffect(() => {
     const offs = [
       on("model:progress", (p: ModelProgress) => setProgress(p)),
-      on("model:loaded", (m: LoadedModel) => { modelEvents.current++; setLoaded(m); setProgress(null); api.systemInfo().then(setInfo).catch(() => {}); }),
-      on("model:unloaded", () => { modelEvents.current++; setLoaded(null); api.systemInfo().then(setInfo).catch(() => {}); }),
+      on("model:loaded", (m: LoadedModel) => { modelEvents.current++; setLoaded(m); setProgress(null); refreshInfo(); }),
+      on("model:unloaded", () => { modelEvents.current++; setLoaded(null); refreshInfo(); }),
     ];
     return () => offs.forEach((f) => f());
-  }, []);
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ctrl/Cmd + 1..9 switch views, like tabs in a browser.
   useEffect(() => {

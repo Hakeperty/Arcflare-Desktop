@@ -12,3 +12,9 @@ export function follow<T>(subscribe: (fn: (x: T) => void) => () => void, read: (
   read().then((x) => { if (!seen && x !== undefined) apply(x); }).catch(() => { /* the events still arrive */ });
   return () => { seen = true; off(); };
 }
+
+/** Each call takes a ticket; a ticket is current until the next one is taken. */
+export function tickets(): () => () => boolean {
+  let n = 0;
+  return () => { const mine = ++n; return () => mine === n; };
+}

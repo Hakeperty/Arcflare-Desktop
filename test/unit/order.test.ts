@@ -2,7 +2,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { follow } from "../../src/lib/order";
+import { follow, tickets } from "../../src/lib/order";
 
 function source<T>() {
   let fn: ((x: T) => void) | null = null;
@@ -37,4 +37,13 @@ test("follow: nothing applies after unsubscribing, and a missing read is skipped
   follow(b.subscribe, b.read, (x) => got.push(x));
   b.answer(undefined); await tick();
   assert.deepEqual(got, []);
+});
+
+test("tickets: a slow older read is dropped once a newer one was started", () => {
+  const take = tickets();
+  const older = take();
+  assert.equal(older(), true);
+  const newer = take();
+  assert.equal(older(), false);   // lands late: must not replace what the newer read shows
+  assert.equal(newer(), true);
 });
