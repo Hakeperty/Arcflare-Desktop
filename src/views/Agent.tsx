@@ -39,10 +39,13 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   const [showNotes, setShowNotes] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  // Set once the person opens a folder, so the saved one reopening late cannot replace it.
+  const chosen = useRef(false);
   const sid = session?.sessionId;
 
   async function openFolder(folder: string, opts?: AgentSwitches) {
     setErr("");
+    chosen.current = true;
     try {
       const s = await agent.open(folder, { ...sw, ...(opts ?? {}) });
       setSession(s);
@@ -58,10 +61,11 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
     // The saved switches first, so the session opens with the tools it had.
     api.settings().then((st) => st.tools).catch(() => null).then((saved) => {
       const tools = saved ? { machine: saved.machine !== false, desktop: saved.desktop !== false, web: saved.web !== false } : sw;
+      if (chosen.current) return;
       setSw(tools);
       if (!last) return;
-      agent.open(last, tools).then((s) => { setSession(s); agent.recent().then(setRecent).catch(() => {}); })
-        .catch(() => write(FOLDER, ""));   // moved or deleted since: just start without it
+      agent.open(last, tools).then((s) => { if (chosen.current) return; setSession(s); agent.recent().then(setRecent).catch(() => {}); })
+        .catch(() => { if (!chosen.current) write(FOLDER, ""); });   // moved or deleted since: just start without it
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
