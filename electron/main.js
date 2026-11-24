@@ -370,12 +370,20 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   updater.stop();
-  remote.shutdown();
+  // A new window has no way back to an agent session, so they end with the window.
   agents.shutdown();
+  // macOS keeps the app running with no window: phone control, studio jobs and the
+  // model keep going, and a reopened window picks them up. Quit stops them.
+  if (process.platform === "darwin") return;
+  remote.shutdown();
   // llama-server is started detached so the CLI can share it; the app stops it
   // on quit unless the person chose to keep it (Settings).
   eng.shutdown({ stopServer: serve.loadConfig().stopServerOnQuit !== false });
-  if (process.platform !== "darwin") app.quit();
+  app.quit();
 });
 
-app.on("before-quit", () => eng.shutdown({ stopServer: serve.loadConfig().stopServerOnQuit !== false }));
+app.on("before-quit", () => {
+  remote.shutdown();
+  agents.shutdown();
+  eng.shutdown({ stopServer: serve.loadConfig().stopServerOnQuit !== false });
+});
