@@ -179,3 +179,28 @@ test("a phone turn that fails outside the chat does not block the turns after it
     await until(() => remote.status().history.some((h) => h.role === "assistant" && h.content === "ok"), "the second turn");
   } finally { console.error = err; }
 });
+
+// ------------------------------------------------------------------ agent ----
+
+test("MCP servers that finish starting after the agent session closed are stopped", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { mkdirSync } = await import("node:fs");
+  const run = require("arcflare/lib/agent/run");
+  const real = run.connectMcp;
+  let finish;
+  run.connectMcp = () => new Promise((r) => { finish = r; });
+  let stopped = 0;
+  try {
+    const fake = { bus: new EventEmitter(), ensureChatModel: async () => ({ id: "fake:q4", port: 1, servedId: "fake", ctx: 4096 }) };
+    const agents = require("../electron/agent.js")(fake);
+    const dir = join(tmp, "proj");
+    mkdirSync(dir, { recursive: true });
+    const s = await agents.open(dir, { machine: false, desktop: false, web: false });
+    const p = agents.send(s.sessionId, "hi");
+    await until(() => finish, "the MCP servers to start");
+    agents.close(s.sessionId);
+    finish({ reg: { stopAll: () => { stopped++; }, all: () => [] }, results: [] });
+    await assert.rejects(p, /closed/);
+    assert.equal(stopped, 1);
+  } finally { run.connectMcp = real; }
+});

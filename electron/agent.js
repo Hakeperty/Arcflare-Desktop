@@ -243,6 +243,8 @@ module.exports = function createAgents(eng) {
     const skills = skillsmod.discover(s.folder);
     if (skills.length) s.notes.push(`${skills.length} skill${skills.length === 1 ? "" : "s"}: ${skills.map((k) => k.name).slice(0, 6).join(", ")}`);
     const { reg, results } = await run.connectMcp(mcpCfg);
+    // Closed while its servers were starting: stop them, or they outlive the session.
+    if (!sessions.has(s.id)) { reg.stopAll(); throw new Error("the agent session was closed"); }
     for (const r of results) s.notes.push(r.ok ? `mcp ${r.name}: ${r.tools} tools` : `mcp ${r.name}: ${r.error}`);
     if (s.reg) s.reg.stopAll();
     s.reg = reg;
