@@ -45,6 +45,7 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
     setLoadErr("");
     try {
       const root = await v.load(fileUrl(path, Date.now()));
+      if (!root) return;   // a newer open, or the viewer closing, came first
       parts.current = prepareParts(root);
       refreshColours(parts.current, showSel);
       setMeshPath(path);

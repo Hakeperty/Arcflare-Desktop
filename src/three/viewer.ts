@@ -20,6 +20,8 @@ export class Viewer {
   private active = true;
   private resize: ResizeObserver;
   private raycaster = new THREE.Raycaster();
+  /** Bumped by every load and by dispose, so a load that finishes late knows it lost. */
+  private loads = 0;
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -82,9 +84,14 @@ export class Viewer {
     this.requestRender();
   }
 
-  /** Load a .glb, replacing what was shown, and frame it. */
-  async load(url: string): Promise<THREE.Group> {
+  /**
+   * Load a .glb, replacing what was shown, and frame it. Null when a newer
+   * load or dispose came first: the file is then dropped, not shown.
+   */
+  async load(url: string): Promise<THREE.Group | null> {
+    const n = ++this.loads;
     const gltf = await new GLTFLoader().loadAsync(url);
+    if (n !== this.loads) { free(gltf.scene); return null; }
     this.clear();
     const root = new THREE.Group();
     root.add(gltf.scene);
@@ -149,20 +156,12 @@ export class Viewer {
   private clear() {
     if (!this.root) return;
     this.scene.remove(this.root);
-    this.root.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      m.geometry.dispose();
-      (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => {
-        // material.dispose() leaves its textures on the GPU.
-        for (const v of Object.values(x)) if (v instanceof THREE.Texture) v.dispose();
-        x.dispose();
-      });
-    });
+    free(this.root);
     this.root = null;
   }
 
   dispose() {
+    this.loads++;
     cancelAnimationFrame(this.raf);
     this.resize.disconnect();
     this.controls.dispose();
@@ -170,4 +169,18 @@ export class Viewer {
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
+}
+
+/** Free a model's geometry, materials and textures on the GPU. */
+function free(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.geometry.dispose();
+    (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => {
+      // material.dispose() leaves its textures on the GPU.
+      for (const v of Object.values(x)) if (v instanceof THREE.Texture) v.dispose();
+      x.dispose();
+    });
+  });
 }
