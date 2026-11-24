@@ -362,7 +362,8 @@ app.whenReady().then(() => {
   });
   createWindow();
   updater.start();
-  app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  // macOS keeps the app running with no window; closing it stopped the update checks, so start them again.
+  app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) { createWindow(); updater.start(); } });
 });
 
 app.on("window-all-closed", () => {
