@@ -16,10 +16,7 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   const [tab, setTab] = useState<Tab>("skills");
   const [data, setData] = useState<StoreList | null>(null);
   const [err, setErr] = useState("");
-  const load = (refresh?: boolean) => api.store(refresh).then(setData).catch((e) => setErr(e.message));
-  useEffect(() => { load(); }, []);
-
-  // One change at a time, so "add all" or quick clicks show the list from the last change, not whichever reply came last.
+  // One change or refresh at a time, so "add all" or quick clicks show the list from the last one, not whichever reply came last.
   const queue = useRef(Promise.resolve());
   const run = (fn: () => Promise<StoreList>) => {
     setErr("");
@@ -27,6 +24,7 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
       try { setData(await fn()); } catch (e) { setErr((e as Error).message); }
     });
   };
+  useEffect(() => { run(() => api.store()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="page flush">
@@ -43,8 +41,8 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
           : !data.available
             ? <EmptyState seed="no-store" title="The store needs a newer engine">Update ArcFlare, then come back: the store arrived in a later version of the engine than the one this app is running.</EmptyState>
             : tab === "skills"
-              ? <Skills data={data} err={err} refresh={() => load(true)} add={(id) => run(() => api.storeSkillAdd(id))} remove={(id) => run(() => api.storeSkillRemove(id))} />
-              : <Servers data={data} err={err} refresh={() => load(true)} add={(id, extra, accept) => run(() => api.storeMcpAdd(id, extra, accept))} remove={(id) => run(() => api.storeMcpRemove(id))} />}
+              ? <Skills data={data} err={err} refresh={() => run(() => api.store(true))} add={(id) => run(() => api.storeSkillAdd(id))} remove={(id) => run(() => api.storeSkillRemove(id))} />
+              : <Servers data={data} err={err} refresh={() => run(() => api.store(true))} add={(id, extra, accept) => run(() => api.storeMcpAdd(id, extra, accept))} remove={(id) => run(() => api.storeMcpRemove(id))} />}
       </div>
     </div>
   );
