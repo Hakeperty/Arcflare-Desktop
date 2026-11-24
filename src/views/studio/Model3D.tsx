@@ -266,6 +266,7 @@ export function Model3DTab({ openMesh, inputImage, loaded, active }: Props) {
       if (typing) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); doRedo(); }
+      else if (e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+S, Ctrl+F and the like are not ours
       else if (e.key === "s") setTool((t) => (t === "select" ? "orbit" : "select"));
       else if (e.key === "f") viewer.current?.frame();
     };
