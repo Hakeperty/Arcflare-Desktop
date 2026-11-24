@@ -4,7 +4,7 @@
 // showing generated images, meshes and audio. The renderer runs sandboxed with
 // no Node access; everything it can do is listed in preload.js.
 
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, net, nativeTheme, session } = require("electron");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -360,6 +360,8 @@ app.whenReady().then(() => {
     if (!allowed(p) || !fs.existsSync(p)) return new Response("not allowed", { status: 403 });
     return net.fetch(pathToFileURL(p).toString());
   });
+  // Electron grants every permission by default; the page only needs to copy text.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, done) => done(permission === "clipboard-sanitized-write"));
   createWindow();
   updater.start();
   // macOS keeps the app running with no window; closing it stopped the update checks, so start them again.
