@@ -158,6 +158,12 @@ test("three model loads in a row run one at a time", async () => {
   }
 });
 
+test("a harness opened on Windows gets every path quoted and escaped for cmd.exe", () => {
+  assert.equal(eng.winStartLine(["C:\\Users\\A&B\\ArcFlare.exe", "C:\\Program Files\\bin\\arcflare.js", "use", "claude"]),
+    '/d /c start "ArcFlare" ^"C:\\Users\\A^&B\\ArcFlare.exe^" ^"C:\\Program^ Files\\bin\\arcflare.js^" ^"use^" ^"claude^"');
+  assert.throws(() => eng.winStartLine(["C:\\Users\\100%\\ArcFlare.exe"]), /cannot pass a "%"/);
+});
+
 // ---------------------------------------------------------------- comfyui ----
 
 test("a ComfyUI workflow takes a multi-line prompt with quotes", async () => {

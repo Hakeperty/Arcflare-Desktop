@@ -640,8 +640,10 @@ async function launchHarness(id, modelId) {
   const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
   if (process.platform === "win32") {
     // A new console window titled ArcFlare, running the CLI with Electron's Node.
-    await spawnFirst([["cmd.exe", ["/d", "/c", "start", '"ArcFlare"', node, ARCFLARE_BIN, ...args]]],
-      { env, detached: true, stdio: "ignore", windowsHide: false });
+    // The line is built here and passed verbatim: Node quotes only arguments with spaces,
+    // so an install path like C:\Users\A&B\... reached cmd.exe as two commands.
+    await spawnFirst([["cmd.exe", [winStartLine([node, ARCFLARE_BIN, ...args])]]],
+      { env, detached: true, stdio: "ignore", windowsHide: false, windowsVerbatimArguments: true });
   } else if (process.platform === "darwin") {
     const cmd = [node, ARCFLARE_BIN, ...args].map((a) => `'${String(a).replace(/'/g, "'\\''")}'`).join(" ");
     // AppleScript string: escape backslashes before quotes, or \" ends the string.
@@ -657,6 +659,18 @@ async function launchHarness(id, modelId) {
     await spawnFirst([[term.cmd, [...term.pre, node, ARCFLARE_BIN, ...args]]], { env, detached: true, stdio: "ignore" });
   }
   return true;
+}
+
+// Same quoting as cmdLine in the CLI's lib/harness.js: quote each argument for the
+// program (backslashes before a quote doubled), then caret-escape cmd.exe's
+// metacharacters, quotes included, so cmd never reads any of it as syntax.
+const CMD_META = /[()[\]!^"`<>&|;, *?]/g;
+function winStartLine(argv) {
+  // cmd.exe expands %VAR% before it reads carets, so no escaping makes % safe.
+  const bad = argv.find((a) => String(a).includes("%"));
+  if (bad !== undefined) throw new Error(`On Windows, ArcFlare cannot pass a "%" safely through cmd.exe. Move or rename the folder without the %: ${bad}`);
+  const quote = (a) => `"${String(a).replace(/(\\*)"/g, '$1$1\\"').replace(/(\\*)$/, "$1$1")}"`;
+  return ["/d", "/c", "start", '"ArcFlare"', ...argv.map((a) => quote(a).replace(CMD_META, "^$&"))].join(" ");
 }
 
 /** How each Linux terminal is told to run a command: the program, and what goes before the command. */
@@ -728,7 +742,7 @@ module.exports = {
   generate3d, speak, genSetup, genStatus, hubCatalogue, hubInstall,
   arcList, arcUse, arcInstall, activeArc, arcs,
   storeList, storeSkillAdd, storeSkillRemove, storeMcpAdd, storeMcpRemove, skillsList, skillSet,
-  linuxTerminal, LINUX_TERMINALS,
+  linuxTerminal, LINUX_TERMINALS, winStartLine,
   harnessList, launchHarness, spawnFirst, failureReason, cancelJob, jobs: () => [...jobs.values()].map(publicJob),
   studioDir, stamp, studioJob, cliJob, makeRoomFor, shutdown, cfg, state, pool,
 };
