@@ -339,10 +339,10 @@ handle("files:list", (kind) => {
   const dir = eng.studioDir();
   return fs.readdirSync(dir)
     .filter((f) => ext.test(f))
-    .map((f) => {
+    .flatMap((f) => {
       const p = path.join(dir, f);
-      const st = fs.statSync(p);
-      return { path: p, name: f, bytes: st.size, mtime: st.mtimeMs };
+      // A file deleted between the listing and here is skipped, not a failed listing.
+      try { const st = fs.statSync(p); return [{ path: p, name: f, bytes: st.size, mtime: st.mtimeMs }]; } catch { return []; }
     })
     .sort((a, b) => b.mtime - a.mtime)
     .slice(0, 200);
