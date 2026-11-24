@@ -8,8 +8,9 @@ import { api, on, updates, type UpdateStatus } from "../lib/api";
 export function useUpdates(): UpdateStatus | null {
   const [s, setS] = useState<UpdateStatus | null>(null);
   useEffect(() => {
-    updates.status().then(setS).catch(() => {});
-    return on("update:status", (x: UpdateStatus) => setS(x));
+    let seen = false;   // an event is at least as new as the first read
+    updates.status().then((x) => { if (!seen) setS(x); }).catch(() => {});
+    return on("update:status", (x: UpdateStatus) => { seen = true; setS(x); });
   }, []);
   return s;
 }
