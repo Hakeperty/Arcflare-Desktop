@@ -118,7 +118,7 @@ export function ImageTab({ handoff }: { handoff: Handoff }) {
           <div className="row" style={{ padding: "8px 14px", borderTop: "1px solid var(--border)" }}>
             <span className="mono dim truncate grow" style={{ fontSize: 12 }}>{current.split(/[\\/]/).pop()}</span>
             <button className="btn primary sm" onClick={() => handoff.imageTo3D(current)}>make 3D</button>
-            <button className="btn sm" onClick={() => api.saveAs(current, { filters: [{ name: "PNG", extensions: ["png"] }] })}>save as…</button>
+            <button className="btn sm" onClick={() => api.saveAs(current, { filters: [{ name: "PNG", extensions: ["png"] }] }).catch((e) => setErr((e as Error).message))}>save as…</button>
             <button className="btn sm" onClick={() => api.reveal(current)}>reveal</button>
           </div>
         )}

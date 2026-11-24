@@ -1,15 +1,18 @@
 // Every slow thing in one list: downloads, setups, generations — with logs,
 // cancel, and the file each one made.
 
+import { useState } from "react";
 import { api, type Job } from "../lib/api";
 import { EmptyState, JobStatus, Panel, ViewHead } from "../ui/kit";
 
 export function Jobs({ jobs }: { jobs: Job[] }) {
+  const [err, setErr] = useState("");
   return (
     <div className="page">
       <ViewHead index="07" label="jobs" title="Jobs">
         Downloads, setups and generations from this session. They keep running when you switch screens.
       </ViewHead>
+      {err && <div className="err" style={{ marginBottom: 10 }}>{err}</div>}
       {jobs.length === 0 && (
         <EmptyState seed="no-jobs" title="Nothing running">
           Generate something in the Studio or download a model, and it shows up here with its progress and log.
@@ -23,7 +26,7 @@ export function Jobs({ jobs }: { jobs: Job[] }) {
               {j.result?.file && (
                 <>
                   <button className="btn sm" onClick={() => api.reveal(String(j.result!.file))}>reveal</button>
-                  <button className="btn sm" onClick={() => api.saveAs(String(j.result!.file))}>save as…</button>
+                  <button className="btn sm" onClick={() => { setErr(""); api.saveAs(String(j.result!.file)).catch((e) => setErr((e as Error).message)); }}>save as…</button>
                 </>
               )}
             </div>

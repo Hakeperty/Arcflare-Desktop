@@ -104,7 +104,7 @@ export function SpeechTab() {
           <Panel title={`${job.result.seconds ?? "?"}s of audio`}>
             <audio controls autoPlay src={fileUrl(String(job.result.file))} style={{ width: "100%" }} />
             <div className="row" style={{ marginTop: 8 }}>
-              <button className="btn sm" onClick={() => api.saveAs(String(job.result!.file), { filters: [{ name: "WAV", extensions: ["wav"] }] })}>save as…</button>
+              <button className="btn sm" onClick={() => api.saveAs(String(job.result!.file), { filters: [{ name: "WAV", extensions: ["wav"] }] }).catch((e) => setErr((e as Error).message))}>save as…</button>
               <button className="btn sm" onClick={() => api.reveal(String(job.result!.file))}>reveal</button>
             </div>
           </Panel>
