@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInfo } from "./lib/api";
 import { useJobs } from "./ui/kit";
 import { Home } from "./views/Home";
@@ -46,22 +46,26 @@ export function App() {
   useEffect(() => {
     setup.state().then((st) => { setSetupDone(st.done); if (!st.done || st.forced) setWelcome(true); }).catch(() => setSetupDone(true));
   }, []);
-  const refreshInfo = () => api.systemInfo().then((i) => { setInfo(i); setLoaded(i.loaded); }).catch(() => {});
+  // Counts model:loaded/unloaded events: a slow system info read that started
+  // before one of them must not put back the model state it replaced.
+  const modelEvents = useRef(0);
+  const refreshInfo = () => {
+    const n = modelEvents.current;
+    return api.systemInfo().then((i) => { setInfo(i); if (n === modelEvents.current) setLoaded(i.loaded); }).catch(() => {});
+  };
 
   // System info now and every 15 s: free VRAM moves as models load and unload.
   useEffect(() => {
-    let alive = true;
-    const tick = () => api.systemInfo().then((i) => { if (alive) { setInfo(i); setLoaded(i.loaded); } }).catch(() => {});
-    tick();
-    const t = setInterval(tick, 15000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+    refreshInfo();
+    const t = setInterval(refreshInfo, 15000);
+    return () => clearInterval(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const offs = [
       on("model:progress", (p: ModelProgress) => setProgress(p)),
-      on("model:loaded", (m: LoadedModel) => { setLoaded(m); setProgress(null); api.systemInfo().then(setInfo).catch(() => {}); }),
-      on("model:unloaded", () => { setLoaded(null); api.systemInfo().then(setInfo).catch(() => {}); }),
+      on("model:loaded", (m: LoadedModel) => { modelEvents.current++; setLoaded(m); setProgress(null); api.systemInfo().then(setInfo).catch(() => {}); }),
+      on("model:unloaded", () => { modelEvents.current++; setLoaded(null); api.systemInfo().then(setInfo).catch(() => {}); }),
     ];
     return () => offs.forEach((f) => f());
   }, []);
