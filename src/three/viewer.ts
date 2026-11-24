@@ -153,7 +153,11 @@ export class Viewer {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       m.geometry.dispose();
-      (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => x.dispose());
+      (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => {
+        // material.dispose() leaves its textures on the GPU.
+        for (const v of Object.values(x)) if (v instanceof THREE.Texture) v.dispose();
+        x.dispose();
+      });
     });
     this.root = null;
   }
