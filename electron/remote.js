@@ -26,7 +26,7 @@ module.exports = function createRemote(eng) {
   let busyId = null;
   let lastNote = "";
   let generation = 0;         // bumps on stop, so an old wait loop ends
-  let opening = null;         // the start in flight, so a second press joins it
+  let opening = null;         // the start in flight, so a second press joins it: { gen, done }
 
   const send = (channel, payload) => eng.bus.emit(channel, payload);
 
@@ -109,8 +109,13 @@ module.exports = function createRemote(eng) {
 
   function start() {
     if (session && session.active) return Promise.resolve(status());
-    if (!opening) opening = open().finally(() => { opening = null; });
-    return opening;
+    // A start from before the last stop will close itself when it lands: open a new one instead of joining it.
+    if (!opening || opening.gen !== generation) {
+      const o = { gen: generation, done: null };
+      o.done = open().finally(() => { if (opening === o) opening = null; });
+      opening = o;
+    }
+    return opening.done;
   }
 
   async function open() {

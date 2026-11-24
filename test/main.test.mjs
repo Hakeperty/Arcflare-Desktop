@@ -262,6 +262,26 @@ test("stop pressed while the relay is still answering start leaves phone control
   } finally { delete process.env.ARCFLARE_RELAY; }
 });
 
+test("start, stop, then start again before the relay answers leaves phone control on", async () => {
+  const relay = await fakeRelay();
+  process.env.ARCFLARE_RELAY = relay.url;
+  const { EventEmitter } = await import("node:events");
+  const remote = require("../electron/remote.js")({ bus: new EventEmitter(), state: { loaded: null }, stopChat() {} });
+  try {
+    const a = remote.start();
+    await until(() => relay.seen.open > 0, "the first open");
+    await remote.stop();
+    const b = remote.start();
+    await until(() => relay.seen.open > 1, "the second open");
+    relay.release();
+    await Promise.all([a, b]);
+    assert.equal(remote.status().on, true);
+    assert.equal(relay.seen.close, 1);   // only the stale first session
+    await remote.stop();
+    assert.equal(relay.seen.close, 2);
+  } finally { delete process.env.ARCFLARE_RELAY; }
+});
+
 // ------------------------------------------------------------------ agent ----
 
 test("MCP servers that finish starting after the agent session closed are stopped", async () => {
