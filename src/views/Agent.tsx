@@ -110,7 +110,8 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
     setErr("");
     setInput("");
     stick.current = true;
-    try { await agent.send(session.sessionId, t); } catch (e) { setErr((e as Error).message); }
+    // On failure, put the message back unless something new was typed meanwhile.
+    try { await agent.send(session.sessionId, t); } catch (e) { setErr((e as Error).message); setInput((cur) => cur || input); }
   }
 
   async function toggleAuto() {
