@@ -26,6 +26,7 @@ module.exports = function createRemote(eng) {
   let busyId = null;
   let lastNote = "";
   let generation = 0;         // bumps on stop, so an old wait loop ends
+  let opening = null;         // the start in flight, so a second press joins it
 
   const send = (channel, payload) => eng.bus.emit(channel, payload);
 
@@ -106,8 +107,14 @@ module.exports = function createRemote(eng) {
     }
   }
 
-  async function start() {
-    if (session && session.active) return status();
+  function start() {
+    if (session && session.active) return Promise.resolve(status());
+    if (!opening) opening = open().finally(() => { opening = null; });
+    return opening;
+  }
+
+  async function open() {
+    const gen = generation;
     const relay = rc.relayUrl(serve.loadConfig());
     const s = new rc.RemoteSession({
       relay,
@@ -121,6 +128,8 @@ module.exports = function createRemote(eng) {
       // A switched-off relay already says so plainly; anything else is a reach problem.
       throw new Error(e.status === 503 ? e.message : `could not reach the relay at ${relay}: ${e.message}`);
     }
+    // Stop was pressed while the relay was answering: leave it off.
+    if (gen !== generation) { await s.close(); return status(); }
     session = s;
     lastNote = "relay connected";
     waitLoop(s, ++generation);
@@ -156,5 +165,5 @@ module.exports = function createRemote(eng) {
     return true;
   }
 
-  return { start, stop, status, say, clear, shutdown: () => (session ? stop() : null) };
+  return { start, stop, status, say, clear, shutdown: () => (session || opening ? stop() : null) };
 };

@@ -180,6 +180,57 @@ test("a phone turn that fails outside the chat does not block the turns after it
   } finally { console.error = err; }
 });
 
+async function fakeRelay() {
+  const seen = { open: 0, close: 0 };
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const port = await listen((req, res) => {
+    let body = "";
+    req.on("data", (c) => { body += c; });
+    req.on("end", async () => {
+      if (req.method === "GET") return setTimeout(() => res.end('{"events":[]}'), 50);
+      const type = JSON.parse(body).type;
+      if (type in seen) seen[type]++;
+      if (type === "open") await gate;
+      res.end("{}");
+    });
+  });
+  return { url: `http://127.0.0.1:${port}`, seen, release };
+}
+
+test("pressing start twice opens one relay session, and stop closes it", async () => {
+  const relay = await fakeRelay();
+  process.env.ARCFLARE_RELAY = relay.url;
+  const { EventEmitter } = await import("node:events");
+  const remote = require("../electron/remote.js")({ bus: new EventEmitter(), state: { loaded: null }, stopChat() {} });
+  try {
+    const a = remote.start(), b = remote.start();
+    await until(() => relay.seen.open > 0, "the open");
+    relay.release();
+    await Promise.all([a, b]);
+    assert.equal(relay.seen.open, 1);
+    await remote.stop();
+    assert.equal(relay.seen.close, 1);
+    assert.equal(remote.status().on, false);
+  } finally { delete process.env.ARCFLARE_RELAY; }
+});
+
+test("stop pressed while the relay is still answering start leaves phone control off", async () => {
+  const relay = await fakeRelay();
+  process.env.ARCFLARE_RELAY = relay.url;
+  const { EventEmitter } = await import("node:events");
+  const remote = require("../electron/remote.js")({ bus: new EventEmitter(), state: { loaded: null }, stopChat() {} });
+  try {
+    const a = remote.start();
+    await until(() => relay.seen.open > 0, "the open");
+    await remote.stop();
+    relay.release();
+    await a;
+    assert.equal(remote.status().on, false);
+    assert.equal(relay.seen.close, 1);
+  } finally { delete process.env.ARCFLARE_RELAY; }
+});
+
 // ------------------------------------------------------------------ agent ----
 
 test("MCP servers that finish starting after the agent session closed are stopped", async () => {
