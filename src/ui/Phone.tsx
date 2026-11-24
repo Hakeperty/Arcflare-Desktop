@@ -8,8 +8,9 @@ import { on, rc, type RcStatus } from "../lib/api";
 export function useRemote(): RcStatus | null {
   const [s, setS] = useState<RcStatus | null>(null);
   useEffect(() => {
-    rc.status().then(setS).catch(() => {});
-    return on("rc:status", (x: RcStatus) => setS(x));
+    let seen = false;   // an event is at least as new as the first read
+    rc.status().then((x) => { if (!seen) setS(x); }).catch(() => {});
+    return on("rc:status", (x: RcStatus) => { seen = true; setS(x); });
   }, []);
   return s;
 }
