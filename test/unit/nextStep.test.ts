@@ -23,6 +23,8 @@ test("no model loaded: points at models, with the free memory when it is known",
 test("a loaded model, or a job still running, needs no comment", () => {
   assert.equal(nextStep({ ...base, loaded }), null);
   assert.equal(nextStep({ ...base, loaded, jobs: [job("running", { progress: 62 })] }), null);
+  // A model download in progress: the panda should not ask for a model as well.
+  assert.equal(nextStep({ ...base, jobs: [job("running", { progress: 62 })] }), null);
 });
 
 test("only the newest job's failure is news", () => {

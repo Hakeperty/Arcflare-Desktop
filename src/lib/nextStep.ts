@@ -17,6 +17,7 @@ export function nextStep({ info, loaded, jobs, setupDone, ready }: {
   if (!info || !ready || setupDone === false) return null;
   // Only the newest job: an old failure you have moved on from is not news.
   if (jobs[0]?.state === "failed") return { text: `${jobs[0].title} didn't work. The log says why.`, cta: "see what happened", view: "jobs" };
+  if (jobs.some((j) => j.state === "running")) return null;
   if (!loaded) {
     const free = info.gpu.freeGb;
     return { text: free != null ? `You have ${free} GB of graphics memory free. Let's find a model that fits.` : "No model is loaded yet. Let's pick one.", cta: "models", view: "models" };
