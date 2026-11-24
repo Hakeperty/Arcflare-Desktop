@@ -72,9 +72,13 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   // Live updates for the open session.
   useEffect(() => {
     if (!sid) return;
+    // Events sent before this subscription are missed, so the state is read once
+    // more below; an event that arrives first is at least as new as that read.
+    let seen = false;
     const offs = [
       on("agent:item", (e: AgentItemEvent) => {
         if (e.sessionId !== sid) return;
+        seen = true;
         setSession((s) => {
           if (!s) return s;
           const i = s.items.findIndex((x) => x.id === e.item.id);
@@ -84,6 +88,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
       }),
       on("agent:delta", (e: AgentDeltaEvent) => {
         if (e.sessionId !== sid) return;
+        seen = true;
         setSession((s) => s && {
           ...s,
           items: s.items.map((x) => (x.id !== e.itemId || x.kind !== "assistant" ? x
@@ -92,10 +97,12 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
       }),
       on("agent:status", (e: AgentStatusEvent) => {
         if (e.sessionId !== sid) return;
+        seen = true;
         setSession((s) => s && { ...s, busy: e.busy, stopping: e.stopping, auto: e.auto, stats: e.stats, model: e.model ?? s.model });
       }),
     ];
-    return () => offs.forEach((f) => f());
+    agent.state(sid).then((fresh) => { if (!seen) setSession((s) => (s?.sessionId === sid ? fresh : s)); }).catch(() => {});
+    return () => { seen = true; offs.forEach((f) => f()); };
   }, [sid]);
 
   useEffect(() => {
