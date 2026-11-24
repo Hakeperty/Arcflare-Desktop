@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type LoadedModel, type LocalSkill, type StoreList, type StoreMcp, type StoreSkill } from "../lib/api";
 import { EmptyState, ViewHead } from "../ui/kit";
+import { tickets } from "../lib/order";
 import { Markdown } from "../ui/md";
 import { Arcs, Hub } from "./Models";
 import type { View } from "../App";
@@ -16,15 +17,23 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   const [tab, setTab] = useState<Tab>("skills");
   const [data, setData] = useState<StoreList | null>(null);
   const [err, setErr] = useState("");
-  // One change or refresh at a time, so "add all" or quick clicks show the list from the last one, not whichever reply came last.
+  // One change at a time, so "add all" or quick clicks show the list from the last one, not whichever reply came last.
   const queue = useRef(Promise.resolve());
+  // Every list shown takes a ticket: a read that a change or a newer read overtook is dropped.
+  const shown = useRef(tickets()).current;
   const run = (fn: () => Promise<StoreList>) => {
     setErr("");
     queue.current = queue.current.then(async () => {
-      try { setData(await fn()); } catch (e) { setErr((e as Error).message); }
+      try { const list = await fn(); shown(); setData(list); } catch (e) { setErr((e as Error).message); }
     });
   };
-  useEffect(() => { run(() => api.store()); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // A read does not wait in the queue, so a change that hangs cannot hold it up.
+  const read = (fresh?: boolean) => {
+    setErr("");
+    const current = shown();
+    api.store(fresh).then((list) => { if (current()) setData(list); }, (e) => { if (current()) setErr((e as Error).message); });
+  };
+  useEffect(() => { read(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="page flush">
@@ -41,8 +50,8 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
           : !data.available
             ? <EmptyState seed="no-store" title="The store needs a newer engine">Update ArcFlare, then come back: the store arrived in a later version of the engine than the one this app is running.</EmptyState>
             : tab === "skills"
-              ? <Skills data={data} err={err} refresh={() => run(() => api.store(true))} add={(id) => run(() => api.storeSkillAdd(id))} remove={(id) => run(() => api.storeSkillRemove(id))} />
-              : <Servers data={data} err={err} refresh={() => run(() => api.store(true))} add={(id, extra, accept) => run(() => api.storeMcpAdd(id, extra, accept))} remove={(id) => run(() => api.storeMcpRemove(id))} />}
+              ? <Skills data={data} err={err} refresh={() => read(true)} add={(id) => run(() => api.storeSkillAdd(id))} remove={(id) => run(() => api.storeSkillRemove(id))} />
+              : <Servers data={data} err={err} refresh={() => read(true)} add={(id, extra, accept) => run(() => api.storeMcpAdd(id, extra, accept))} remove={(id) => run(() => api.storeMcpRemove(id))} />}
       </div>
     </div>
   );
