@@ -253,7 +253,10 @@ handle("agent:close", (id) => agents.close(id));
 handle("edit:plan", (req) => eng.planEdit(req));
 
 handle("gen:status", () => eng.genStatus());
-handle("gen:setup", (id, opts) => eng.genSetup(id, opts));
+handle("gen:setup", (id, opts = {}) => {
+  requireAllowed(opts.torchFrom, "Python to borrow torch from"); // the CLI runs it
+  return eng.genSetup(id, opts);
+});
 // Inputs must already be readable (picked or made by the app); passing a path
 // here never grants it. Output always lands in the studio folder.
 handle("gen:3d", (opts = {}) => {

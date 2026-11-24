@@ -219,3 +219,12 @@ test("a ComfyUI workflow that finishes without an image fails instead of waiting
   writeFileSync(wf, JSON.stringify({ 6: { inputs: { text: "{{prompt}}" } } }));
   await assert.rejects(image.comfyRun(`http://127.0.0.1:${port}`, wf, { prompt: "x" }, join(tmp, "out2.png")), /without saving an image/);
 });
+
+// ------------------------------------------------------------- gen setup ----
+
+test("studio setup refuses a model or torch value that would be read as another CLI flag", () => {
+  assert.throws(() => eng.genSetup("--torch-from=/bin/sh"), /no studio model/);
+  assert.throws(() => eng.genSetup(""), /no studio model/);
+  const id = eng.genStatus()[0].id;
+  assert.throws(() => eng.genSetup(id, { torch: "--torch-from=/bin/sh" }), /unknown torch build/);
+});

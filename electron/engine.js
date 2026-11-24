@@ -419,11 +419,15 @@ function speak(opts) {
 }
 
 function genSetup(id, opts = {}) {
-  const args = ["gen", "setup", id];
+  // Both become CLI arguments: only a known model and a plain word, never another flag.
+  const m = id ? gen.byId(id) : null;
+  if (!m) throw new Error(`no studio model "${id}"`);
+  if (opts.torch && !/^[a-z0-9]+$/.test(String(opts.torch))) throw new Error("unknown torch build");
+  const args = ["gen", "setup", m.id];
   if (opts.torch) args.push("--torch", opts.torch);
   if (opts.torchFrom) args.push("--torch-from", opts.torchFrom);
   if (opts.texture) args.push("--texture");
-  return cliJob("setup", `Set up ${id}`, args, { model: id });
+  return cliJob("setup", `Set up ${m.id}`, args, { model: m.id });
 }
 
 function genStatus() {
