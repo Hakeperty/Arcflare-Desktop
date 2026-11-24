@@ -174,7 +174,11 @@ async function comfyRun(base, workflowFile, vars, out, { onEvent = () => {}, sig
     if (!entry) continue;
     if (entry.status && entry.status.status_str === "error") throw new Error("ComfyUI reported an error running the workflow");
     const images = Object.values(entry.outputs || {}).flatMap((o) => o.images || []);
-    if (!images.length) continue;
+    if (!images.length) {
+      // Done but saved no image (a video or a node without SaveImage): waiting longer would never end.
+      if (entry.status && entry.status.completed) throw new Error("the ComfyUI workflow finished without saving an image");
+      continue;
+    }
     const img = images[0];
     const q = new URLSearchParams({ filename: img.filename, subfolder: img.subfolder || "", type: img.type || "output" });
     const r = await comfyRequest(base, "GET", `/view?${q}`);

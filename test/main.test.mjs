@@ -204,3 +204,18 @@ test("MCP servers that finish starting after the agent session closed are stoppe
     assert.equal(stopped, 1);
   } finally { run.connectMcp = real; }
 });
+
+// ------------------------------------------------------------- comfyui (2) ----
+
+test("a ComfyUI workflow that finishes without an image fails instead of waiting forever", async () => {
+  const port = await listen((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      if (req.url === "/prompt") res.end('{"prompt_id":"p2"}');
+      else res.end(JSON.stringify({ p2: { status: { status_str: "success", completed: true }, outputs: { 9: { gifs: [{ filename: "a.mp4" }] } } } }));
+    });
+  });
+  const wf = join(tmp, "wf2.json");
+  writeFileSync(wf, JSON.stringify({ 6: { inputs: { text: "{{prompt}}" } } }));
+  await assert.rejects(image.comfyRun(`http://127.0.0.1:${port}`, wf, { prompt: "x" }, join(tmp, "out2.png")), /without saving an image/);
+});
