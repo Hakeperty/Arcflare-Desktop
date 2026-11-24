@@ -233,13 +233,13 @@ handle("agent:open", (folder, opts) => {
 });
 // Every session on this computer, read-only: the app's live ones, then the saved
 // command-line and phone ones (see sessions.js; the renderer sends no paths).
-handle("sessions:list", () => {
+handle("sessions:list", async () => {
   const live = agents.list().map((l) => {
     const s = agents.state(l.sessionId);
     const first = s.items.find((i) => i.kind === "user");
     return { source: "app", id: l.sessionId, title: first ? String(first.text).replace(/\s+/g, " ").slice(0, 120) : "", folder: l.folder, model: s.model, updated: new Date().toISOString() };
   });
-  return [...live, ...savedSessions.list(serve.HOME)];
+  return [...live, ...(await savedSessions.list(serve.HOME))];
 });
 handle("sessions:read", (source, id) => savedSessions.read(serve.HOME, source, id));
 handle("agent:state", (id) => agents.state(id));

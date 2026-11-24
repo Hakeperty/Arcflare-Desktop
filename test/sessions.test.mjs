@@ -24,8 +24,8 @@ writeFileSync(join(dir, BAD + ".json"), "{ not json");
 writeFileSync(join(dir, "notes.json"), "{}");
 writeFileSync(join(home, "hub", "agents.json"), JSON.stringify({ agents: [{ sessionId: PHONE, token: "secret" }] }));
 
-test("lists command-line and phone sessions newest first, skipping a broken file", () => {
-  const rows = S.list(home);
+test("lists command-line and phone sessions newest first, skipping a broken file", async () => {
+  const rows = await S.list(home);
   assert.deepEqual(rows.map((r) => [r.source, r.id]), [["phone", PHONE], ["cli", CLI]]);
   assert.ok(!JSON.stringify(rows).includes("secret"));
 });
@@ -38,16 +38,25 @@ test("reads a transcript as text and checks the source", () => {
   assert.throws(() => S.read(home, "cli", BAD));
 });
 
+test("listing lets other work run between session files", async () => {
+  let ran = false;
+  setImmediate(() => { ran = true; });
+  const p = S.list(home);
+  assert.equal(ran, false);
+  await p;
+  assert.equal(ran, true);
+});
+
 test("ids with separators or ../ are refused", () => {
   for (const id of ["../hub/agents", "..\\x", `${CLI}/..`, "a/b", "", null, "20261010-1000-aaaaaa.json"]) assert.throws(() => S.read(home, "cli", id), `${id}`);
 });
 
-test("a link that points outside the sessions folder is refused", (t) => {
+test("a link that points outside the sessions folder is refused", async (t) => {
   const outside = join(home, "outside.json");
   writeFileSync(outside, doc("x", "secret", "2026-10-13T10:00:00Z"));
   const id = "20261013-1000-dddddd";
   try { symlinkSync(outside, join(dir, id + ".json")); }
   catch { try { symlinkSync(home, join(dir, id + ".json"), "junction"); } catch { return t.skip("cannot create a link here"); } }  // Windows without symlink rights
   assert.throws(() => S.read(home, "cli", id));
-  assert.ok(!S.list(home).some((r) => r.id === id));
+  assert.ok(!(await S.list(home)).some((r) => r.id === id));
 });

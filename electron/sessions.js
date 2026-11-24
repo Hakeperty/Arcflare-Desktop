@@ -39,13 +39,14 @@ function readDoc(home, id) {
 }
 
 /** Newest first, at most MAX_LIST, from every saved source. */
-function list(home) {
+async function list(home) {
   let names;
   try { names = fs.readdirSync(sessionsDir(home)); } catch { return []; }
   const phone = phoneIds(home);
   const out = [];
   const ids = names.filter((n) => n.endsWith(".json") && ID.test(n.slice(0, -5))).map((n) => n.slice(0, -5));
   for (const id of ids.sort().reverse().slice(0, MAX_LIST)) {   // ids start with the date
+    await new Promise(setImmediate);  // up to 200 files of 5 MB: let the app answer between them
     let j;
     try { j = readDoc(home, id); } catch { continue; }          // corrupt, oversized or escaping: skipped
     if (!j || typeof j !== "object") continue;
