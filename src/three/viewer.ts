@@ -90,8 +90,9 @@ export class Viewer {
    */
   async load(url: string): Promise<THREE.Group | null> {
     const n = ++this.loads;
-    const gltf = await new GLTFLoader().loadAsync(url);
-    if (n !== this.loads) { free(gltf.scene); return null; }
+    // A load a newer one replaced answers null, also when it fails, so its error is not shown for the newer file.
+    const gltf = await new GLTFLoader().loadAsync(url).catch((e) => { if (n === this.loads) throw e; return null; });
+    if (!gltf || n !== this.loads) { if (gltf) free(gltf.scene); return null; }
     this.clear();
     const root = new THREE.Group();
     root.add(gltf.scene);
