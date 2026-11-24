@@ -330,3 +330,17 @@ test("studio setup refuses a model or torch value that would be read as another 
   const id = eng.genStatus()[0].id;
   assert.throws(() => eng.genSetup(id, { torch: "--torch-from=/bin/sh" }), /unknown torch build/);
 });
+
+// -------------------------------------------------------------- first run ----
+
+test("the first-run screen's GPU lookup does not hold up the main process", async () => {
+  const handlers = {};
+  require("../electron/setup.js")((ch, fn) => { handlers[ch] = fn; }, null);
+  let ticked = false;
+  setImmediate(() => { ticked = true; });
+  const st = await handlers["setup:state"]();
+  // A lookup that ran the GPU tools synchronously would answer before the event loop turned once.
+  assert.equal(ticked, true);
+  assert.equal(typeof st.gpu.vendor, "string");
+  assert.equal(st.build.folder, require("../electron/setup.js").suggestBuild(st.gpu.vendor).folder);
+});
