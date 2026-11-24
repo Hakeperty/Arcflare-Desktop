@@ -41,13 +41,18 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   const stick = useRef(true);
   // Set once the person opens a folder, so the saved one reopening late cannot replace it.
   const chosen = useRef(false);
+  // The saved switches, read once: every open waits for them, so a folder picked
+  // before they arrive still opens with them. swNow follows `sw` for those opens.
+  const saved = useRef<Promise<unknown>>(Promise.resolve());
+  const swNow = useRef(sw);
   const sid = session?.sessionId;
 
   async function openFolder(folder: string, opts?: AgentSwitches) {
     setErr("");
     chosen.current = true;
     try {
-      const s = await agent.open(folder, { ...sw, ...(opts ?? {}) });
+      await saved.current;
+      const s = await agent.open(folder, { ...swNow.current, ...(opts ?? {}) });
       setSession(s);
       write(FOLDER, s.folder);
       agent.recent().then(setRecent).catch(() => {});
@@ -59,11 +64,11 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
     agent.recent().then(setRecent).catch(() => {});
     const last = read(FOLDER);
     // The saved switches first, so the session opens with the tools it had.
-    api.settings().then((st) => st.tools).catch(() => null).then((saved) => {
-      const tools = saved ? { machine: saved.machine !== false, desktop: saved.desktop !== false, web: saved.web !== false } : sw;
-      if (chosen.current) return;
+    saved.current = api.settings().then((st) => st.tools).catch(() => null).then((t) => {
+      const tools = t ? { machine: t.machine !== false, desktop: t.desktop !== false, web: t.web !== false } : sw;
+      swNow.current = tools;
       setSw(tools);
-      if (!last) return;
+      if (!last || chosen.current) return;
       agent.open(last, tools).then((s) => { if (chosen.current) return; setSession(s); agent.recent().then(setRecent).catch(() => {}); })
         .catch(() => { if (!chosen.current) write(FOLDER, ""); });   // moved or deleted since: just start without it
     });
@@ -138,6 +143,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
     // Desktop control is part of the machine tools until it has its own answer:
     // turning the machine tools off takes it along, turning them on brings it back.
     if (key === "machine") next.desktop = next.machine;
+    swNow.current = next;
     setSw(next);
     write(MACHINE, next.machine ? "1" : "0");
     api.saveSettings(next).catch(() => {});
