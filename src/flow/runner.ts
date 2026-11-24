@@ -15,6 +15,8 @@ export type NodeState = {
   output?: Value;
   error?: string;
   jobId?: string;
+  /** The chat request of a running rewrite node, so stop can end it. */
+  chatId?: string;
 };
 
 export type RunHooks = {
@@ -59,7 +61,9 @@ async function runNode(node: FlowNode, inputs: Record<string, Value>, hooks: Run
     case "rewrite": {
       if (!hooks.loaded) throw new Error("load a chat model first (Models, or the Chat tab)");
       const text = input("text");
-      const r = await api.chat(`flow-${uid()}`, {
+      const chatId = `flow-${uid()}`;
+      hooks.setState(node.id, { chatId });
+      const r = await api.chat(chatId, {
         messages: [
           { role: "system", content: str(d.instruction) || "Rewrite the user's text." },
           { role: "user", content: text },

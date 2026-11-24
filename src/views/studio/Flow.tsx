@@ -177,7 +177,11 @@ export function FlowTab({ handoff, loaded, active }: { handoff: Handoff; loaded:
 
   function stop() {
     stopped.current = true;
-    for (const s of Object.values(states)) if (s.status === "running" && s.jobId) api.cancelJob(s.jobId);
+    for (const s of Object.values(states)) {
+      if (s.status !== "running") continue;
+      if (s.jobId) api.cancelJob(s.jobId);
+      if (s.chatId) api.stopChat(s.chatId);
+    }
   }
 
   function loadTemplate(i: number) {
