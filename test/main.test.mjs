@@ -162,3 +162,20 @@ test("a failed CLI job reports the CLI's own reason, not just an exit code", () 
   assert.equal(eng.failureReason(["downloading 40%", "done"]), null);
   assert.equal(eng.failureReason([]), null);
 });
+
+// ----------------------------------------------------------------- remote ----
+
+test("a phone turn that fails outside the chat does not block the turns after it", async () => {
+  const { EventEmitter } = await import("node:events");
+  const bus = new EventEmitter();
+  let first = true;
+  bus.on("rc:turn", () => { if (first) { first = false; throw new Error("window gone"); } });
+  const fake = { bus, state: { loaded: null }, chat: async () => ({ text: "ok", tokPerSec: null }), stopChat() {} };
+  const remote = require("../electron/remote.js")(fake);
+  const err = console.error; console.error = () => {};
+  try {
+    remote.say("one");
+    remote.say("two");
+    await until(() => remote.status().history.some((h) => h.role === "assistant" && h.content === "ok"), "the second turn");
+  } finally { console.error = err; }
+});

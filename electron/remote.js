@@ -93,7 +93,7 @@ module.exports = function createRemote(eng) {
         if (history.length > MAX_HISTORY * 2) history = history.slice(-MAX_HISTORY * 2);
         pushStatus();
       }
-    });
+    }).catch((e) => console.error("[rc] turn failed:", e && e.message)); // a failed turn must not block the ones after it
     return queue;
   }
 
