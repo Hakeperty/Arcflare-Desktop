@@ -238,7 +238,7 @@ export function Agent({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
           <div className="col" style={{ gap: 6, alignItems: "stretch" }}>
             {busy
-              ? <button className="btn danger" onClick={() => session && agent.stop(session.sessionId)} disabled={session?.stopping}>{session?.stopping ? "stopping…" : "stop"}</button>
+              ? <button className="btn danger" onClick={() => session && agent.stop(session.sessionId).catch((e) => setErr((e as Error).message))} disabled={session?.stopping}>{session?.stopping ? "stopping…" : "stop"}</button>
               : <button className="btn primary" onClick={send} disabled={!input.trim() || !session || !loaded}>send</button>}
           </div>
         </div>
