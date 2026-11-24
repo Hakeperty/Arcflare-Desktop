@@ -39,3 +39,47 @@ test("a running rewrite node exposes its chat id, and stopping that chat fails t
   assert.equal(states.r?.status, "failed");
   assert.equal(states.r?.error, "stopped");
 });
+
+test("stop pressed while a job is still being started cancels that job once it exists", async () => {
+  let release!: () => void;
+  const started = new Promise<void>((r) => { release = r; });
+  const cancelled: string[] = [];
+  let onUpdate: ((j: unknown) => void) | null = null;
+  (globalThis as any).window = {
+    arc: {
+      platform: "linux",
+      on: (_ev: string, fn: (j: unknown) => void) => { onUpdate = fn; return () => {}; },
+      invoke: async (channel: string, arg: unknown) => {
+        if (channel === "image:generate") { await started; return { ok: true, value: { id: "j1", state: "running", stage: "start" } }; }
+        if (channel === "jobs:cancel") {
+          cancelled.push(arg as string);
+          onUpdate?.({ id: arg, state: "cancelled" });
+          return { ok: true };
+        }
+        if (channel === "jobs:list") return { ok: true, value: cancelled.length ? [{ id: "j1", state: "cancelled" }] : [] };
+        throw new Error(`unexpected ${channel}`);
+      },
+    },
+  };
+  const g: Graph = {
+    nodes: [
+      { id: "p", kind: "prompt", x: 0, y: 0, data: { text: "a cat" } },
+      { id: "i", kind: "image", x: 0, y: 0, data: { model: "sd" } },
+    ],
+    edges: [{ id: "e", from: "p", fromPort: "text", to: "i", toPort: "prompt" }],
+  };
+  let stopped = false;
+  const states: Record<string, Partial<NodeState>> = {};
+  const done = runGraph(g, {
+    loaded: null,
+    stopped: () => stopped,
+    setState: (id, s) => { states[id] = { ...states[id], ...s }; },
+  }, new Map());
+  await new Promise((r) => setTimeout(r, 1));
+  stopped = true;   // the stop button, before the job id is known
+  release();
+  await done;
+  assert.deepEqual(cancelled, ["j1"]);
+  assert.equal(states.i?.status, "failed");
+  assert.equal(states.i?.error, "cancelled");
+});

@@ -38,6 +38,8 @@ function str(v: unknown): string {
 async function runJob(node: FlowNode, start: Promise<Job>, hooks: RunHooks): Promise<string> {
   const job = await start;
   hooks.setState(node.id, { jobId: job.id, stage: job.stage });
+  // Stop pressed while the job was being started saw no job id to cancel.
+  if (hooks.stopped()) api.cancelJob(job.id).catch(() => {});
   const done = await waitForJob(job.id, (j) => hooks.setState(node.id, { progress: j.progress, stage: j.stage }));
   const file = done.result && typeof done.result.file === "string" ? done.result.file : null;
   if (!file) throw new Error("the job finished without a file");
