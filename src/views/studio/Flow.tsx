@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fileUrl, uid, type GenModel, type ImageModels, type LoadedModel } from "../../lib/api";
 import { Progress } from "../../ui/kit";
 import {
-  PORTS, TEMPLATES, TYPE_COLOR, connect, parseGraph, portType, removeEdge, removeNode, serializeGraph,
+  PORTS, TEMPLATES, TYPE_COLOR, connect, downstream, parseGraph, portType, removeEdge, removeNode, serializeGraph,
   type FlowNode, type Graph, type NodeKind,
 } from "../../flow/graph";
 import { runGraph, type NodeState, type Value } from "../../flow/runner";
@@ -61,16 +61,20 @@ export function FlowTab({ handoff, loaded, active }: { handoff: Handoff; loaded:
     const onKey = (e: KeyboardEvent) => {
       const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
       if (typing || (e.key !== "Delete" && e.key !== "Backspace")) return;
-      if (selected.node) setGraph((g) => removeNode(g, selected.node!));
-      else if (selected.edge) setGraph((g) => removeEdge(g, selected.edge!));
+      if (selected.node) setGraph((g) => { forget(g, selected.node!); return removeNode(g, selected.node!); });
+      else if (selected.edge) setGraph((g) => { forget(g, g.edges.find((x) => x.id === selected.edge)?.to); return removeEdge(g, selected.edge!); });
       setSelected({});
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selected, active]);
 
+  // A node whose settings or inputs changed makes its cached output, and everything
+  // built from it, stale: "run from here" further down must not reuse them.
+  const forget = (g: Graph, id?: string) => { if (id) for (const d of downstream(g, id)) cache.current.delete(d); };
+
   const setNodeData = (id: string, k: string, v: string | number | boolean) =>
-    setGraph((g) => ({ ...g, nodes: g.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, [k]: v } } : n)) }));
+    setGraph((g) => { forget(g, id); return { ...g, nodes: g.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, [k]: v } } : n)) }; });
 
   const toWorld = (cx: number, cy: number) => {
     const r = canvas.current!.getBoundingClientRect();
@@ -142,7 +146,7 @@ export function FlowTab({ handoff, loaded, active }: { handoff: Handoff; loaded:
     if (drag?.kind !== "wire") return;
     const next = connect(graph, { from: drag.from, fromPort: drag.fromPort, to: toNode, toPort }, uid());
     if (typeof next === "string") setMsg(next);
-    else { setGraph(next); setMsg(""); }
+    else { forget(next, toNode); setGraph(next); setMsg(""); }
     setDrag(null);
   }
 
