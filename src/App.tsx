@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, on, platform, type LoadedModel, type ModelProgress, type SystemInfo } from "./lib/api";
 import { useJobs } from "./ui/kit";
 import { tickets } from "./lib/order";
@@ -51,8 +51,8 @@ export function App() {
   // before one of them must not put back the model state it replaced.
   const modelEvents = useRef(0);
   // Only the newest system info read is shown, so an older one cannot put back stale free VRAM.
-  const infoRead = useRef(tickets()).current;
-  const refreshInfo = () => {
+  const [infoRead] = useState(tickets);
+  const refreshInfo = useCallback(() => {
     const n = modelEvents.current;
     const newest = infoRead();
     return api.systemInfo().then((i) => {
@@ -60,14 +60,14 @@ export function App() {
       setInfo(i);
       if (n === modelEvents.current) setLoaded(i.loaded);
     }).catch(() => {});
-  };
+  }, [infoRead]);
 
   // System info now and every 15 s: free VRAM moves as models load and unload.
   useEffect(() => {
     refreshInfo();
     const t = setInterval(refreshInfo, 15000);
     return () => clearInterval(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshInfo]);
 
   useEffect(() => {
     const offs = [
@@ -76,7 +76,7 @@ export function App() {
       on("model:unloaded", () => { modelEvents.current++; setLoaded(null); refreshInfo(); }),
     ];
     return () => offs.forEach((f) => f());
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshInfo])
 
   // Ctrl/Cmd + 1..9 switch views, like tabs in a browser.
   useEffect(() => {

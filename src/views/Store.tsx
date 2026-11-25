@@ -20,7 +20,7 @@ export function Store({ loaded, go }: { loaded: LoadedModel | null; go: (v: View
   // One change at a time, so "add all" or quick clicks show the list from the last one, not whichever reply came last.
   const queue = useRef(Promise.resolve());
   // Every list shown takes a ticket: a read that a change or a newer read overtook is dropped.
-  const shown = useRef(tickets()).current;
+  const [shown] = useState(tickets);
   const run = (fn: () => Promise<StoreList>) => {
     setErr("");
     queue.current = queue.current.then(async () => {

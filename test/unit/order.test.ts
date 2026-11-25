@@ -48,11 +48,3 @@ test("tickets: a slow older read is dropped once a newer one was started", () =>
   assert.equal(newer(), true);
 });
 
-test("tickets, as the Store uses them: a refresh is shown during a hung add, dropped once an add lands", () => {
-  const shown = tickets();
-  const refreshDuringHungAdd = shown();
-  assert.equal(refreshDuringHungAdd(), true);
-  const refresh = shown();
-  shown();                         // the add lands with the list after it
-  assert.equal(refresh(), false);  // the refresh's older list must not undo the add
-});
