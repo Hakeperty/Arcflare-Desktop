@@ -282,7 +282,7 @@ jobs:
                 if [ "$ok" = 1 ]; then
                   default=$(gh api "repos/$GITHUB_REPOSITORY" --jq .default_branch)
                   {
-                    sed -e 's/<!--[^>]*-->//g' .autofix/result.md 2>/dev/null
+                    sed -e 's/</\&lt;/g' .autofix/result.md 2>/dev/null
                     printf '\nFixes #%s\n' "$N"
                   } > .autofix/pr.md
                   title=$(git log -1 --format=%s)
@@ -293,7 +293,7 @@ jobs:
               fi
             fi
           else
-            note="No fix was made. $(cat .autofix/result.md 2>/dev/null)"
+            note="No fix was made. $(sed -e 's/</\&lt;/g' .autofix/result.md 2>/dev/null)"
           fi
           if [ -n "$opened" ]; then body="Opened a draft pull request with a fix: $opened"; else body="$note"; fi
           gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$N/comments" -f body="$body" > /dev/null
